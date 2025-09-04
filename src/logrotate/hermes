@@ -1,0 +1,11 @@
+/var/log/hermes-daemon.log {
+    daily
+    missingok
+    notifempty
+    rotate 14
+    compress
+    delaycompress
+    copytruncate
+    create 0644 root root
+    sharedscripts
+}

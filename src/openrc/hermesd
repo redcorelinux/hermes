@@ -1,0 +1,34 @@
+#!/sbin/openrc-run
+
+name="hermesd"
+description="Sisyphus Upgrade Watchdog Service"
+
+command="/usr/libexec/hermesd.py"
+
+pidfile="/run/${RC_SVCNAME}.pid"
+logfile="/var/log/hermes-daemon.log"
+
+depend() {
+    after net
+    use logger
+}
+
+start_pre() {
+    checkpath --directory --mode 0755 /run
+    checkpath --directory --mode 0755 /var/log
+    touch "${logfile}"
+}
+
+start() {
+    ebegin "Starting ${name}"
+    # Redirect stdout and stderr to logfile
+    start-stop-daemon --start --background --make-pidfile --pidfile "${pidfile}" \
+        --exec "${command}" -- ${command_args} >> "${logfile}" 2>&1
+    eend $?
+}
+
+stop() {
+    ebegin "Stopping ${name}"
+    start-stop-daemon --stop --pidfile "${pidfile}" --retry 5
+    eend $?
+}
