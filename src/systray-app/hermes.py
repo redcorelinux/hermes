@@ -8,6 +8,8 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
 
 IGNORE_FILE = os.path.expanduser("~/.sisyphus_upgrade_ignore")
+AUTOSTART_DIR = os.path.expanduser("~/.config/autostart")
+AUTOSTART_FILE = os.path.join(AUTOSTART_DIR, "hermes.desktop")
 
 
 class SysTrayListener(QtCore.QObject):
@@ -37,6 +39,19 @@ class SysTrayListener(QtCore.QObject):
             action.triggered.connect(
                 lambda checked, l=label: self.set_ignore(l))
             self.menu.addAction(action)
+
+        self.menu.addSeparator()
+
+        self.add_autostart_action = QtGui.QAction(
+            "Enable Autostart", self.menu)
+        self.add_autostart_action.triggered.connect(self.add_to_autostart)
+        self.menu.addAction(self.add_autostart_action)
+
+        self.remove_autostart_action = QtGui.QAction(
+            "Disable Autostart", self.menu)
+        self.remove_autostart_action.triggered.connect(
+            self.remove_from_autostart)
+        self.menu.addAction(self.remove_autostart_action)
 
         self.menu.addSeparator()
 
@@ -159,6 +174,41 @@ class SysTrayListener(QtCore.QObject):
     def quit_app(self):
         self.tray.hide()
         self.app.quit()
+
+    def add_to_autostart(self):
+        try:
+            if not os.path.exists(AUTOSTART_DIR):
+                os.makedirs(AUTOSTART_DIR)
+            exec_path = sys.argv[0]
+            desktop_entry = f"""[Desktop Entry]
+Type=Application
+Exec={exec_path}
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name=Hermes
+Comment=System tray notifications for Sisyphus upgrades
+"""
+            with open(AUTOSTART_FILE, 'w') as f:
+                f.write(desktop_entry)
+            self.tray.showMessage(
+                "Autostart Enabled", "", QtWidgets.QSystemTrayIcon.MessageIcon.Information)
+        except Exception:
+            self.tray.showMessage(
+                "Autostart Enable Failed", "", QtWidgets.QSystemTrayIcon.MessageIcon.Critical)
+
+    def remove_from_autostart(self):
+        try:
+            if os.path.exists(AUTOSTART_FILE):
+                os.remove(AUTOSTART_FILE)
+                self.tray.showMessage(
+                    "Autostart Disabled", "", QtWidgets.QSystemTrayIcon.MessageIcon.Information)
+            else:
+                self.tray.showMessage(
+                    "Autostart Not Found", "", QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
+        except Exception:
+            self.tray.showMessage(
+                "Autostart Disable Failed", "", QtWidgets.QSystemTrayIcon.MessageIcon.Critical)
 
     def run(self):
         self.app.exec()
