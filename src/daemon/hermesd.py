@@ -8,6 +8,7 @@ import io
 import sys
 import signal
 import logging
+import socket
 from gi.repository import GLib
 
 SERVICE_NAME = 'org.hermesd.MessageService'
@@ -21,7 +22,20 @@ logging.basicConfig(
 )
 
 
+def check_internet(host="8.8.8.8", port=53, timeout=3):
+    try:
+        socket.setdefaulttimeout(timeout)
+        socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
+        return True
+    except OSError:
+        return False
+
+
 def get_update_status():
+    if not check_internet():
+        logging.info("Internet check failed")
+        return "no_internet"
+
     buffer = io.StringIO()
     old_stdout = sys.stdout
     sys.stdout = buffer
@@ -42,11 +56,9 @@ def get_update_status():
     cleaned_output = output.replace('\n', ' ').strip()
     logging.info(f"Upgrade check output: {cleaned_output}")
 
-    if "No internet connection detected; Aborting!" in cleaned_output:
-        return "no_internet"
-    elif "Please apply the above changes to your portage configuration files and try again." in cleaned_output:
+    if "Please apply the above changes to your portage configuration files" in cleaned_output:
         return "blocked_upgrade"
-    elif "The system is up to date; no package upgrades are required." in cleaned_output:
+    elif "The system is up to date" in cleaned_output:
         return "heartbeat"
     else:
         return "upgrade_available"
