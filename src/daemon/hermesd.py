@@ -3,8 +3,9 @@
 import dbus
 import dbus.service
 import dbus.mainloop.glib
-import sisyphus
 import sisyphus.checkenv
+import sisyphus.syncenv
+import sisyphus.syncdb
 import io
 import sys
 import signal
