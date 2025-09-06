@@ -3,7 +3,6 @@
 import dbus
 import dbus.service
 import dbus.mainloop.glib
-import sisyphus
 import io
 import sys
 import signal
