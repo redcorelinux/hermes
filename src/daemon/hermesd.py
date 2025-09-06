@@ -7,6 +7,7 @@ import sisyphus
 import io
 import sys
 import signal
+import subprocess
 import logging
 import socket
 from gi.repository import GLib
@@ -35,6 +36,12 @@ def get_update_status():
     if not check_internet():
         logging.info("Internet check failed")
         return "no_internet"
+    else:
+        try:
+            subprocess.check_call(['emerge', '--sync'])
+        except Exception as e:
+            logging.error(f"'emerge --sync' failed: {e}")
+            return "blocked_sync"
 
     buffer = io.StringIO()
     old_stdout = sys.stdout

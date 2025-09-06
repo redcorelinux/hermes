@@ -135,6 +135,13 @@ class SysTrayListener(QtCore.QObject):
                 QtWidgets.QSystemTrayIcon.MessageIcon.Warning
             )
 
+        elif message = "blocked_sync":
+            self.tray.showMessage(
+                "Sync Failure",
+                "Unable to sync the portage tree and overlays to check for system upgrade.",
+                QtWidgets.QSystemTrayIcon.MessageIcon.Warning
+            )
+
         elif message == "blocked_upgrade":
             if not self.is_ignored():
                 self.tray.showMessage(
