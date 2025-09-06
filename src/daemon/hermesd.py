@@ -23,9 +23,20 @@ logging.basicConfig(
 
 
 def get_update_status():
-    if not sisyphus.checkenv.connectivity():
+    is_online = sisyphus.checkenv.connectivity()
+    is_sane = sisyphus.checkenv.sanity()
+
+    if is_online != 1:
         logging.info("Connectivity check failed")
         return "no_internet"
+    else:
+        if is_sane == 1:
+            sisyphus.syncenv.g_repo()
+            sisyphus.syncenv.r_repo()
+            sisyphus.syncenv.p_cfg_repo()
+            sisyphus.syncdb.rmt_tbl()
+        else:
+            return "blocked_sync"
 
     buffer = io.StringIO()
     old_stdout = sys.stdout
