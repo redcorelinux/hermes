@@ -4,6 +4,7 @@ import dbus
 import dbus.service
 import dbus.mainloop.glib
 import sisyphus
+import sisyphus.checkenv
 import io
 import sys
 import signal
@@ -22,6 +23,10 @@ logging.basicConfig(
 
 
 def get_update_status():
+    if not sisyphus.checkenv.connectivity():
+        logging.info("Connectivity check failed")
+        return "no_internet"
+
     buffer = io.StringIO()
     old_stdout = sys.stdout
     sys.stdout = buffer
@@ -42,9 +47,7 @@ def get_update_status():
     cleaned_output = output.replace('\n', ' ').strip()
     logging.info(f"Upgrade check output: {cleaned_output}")
 
-    if "No internet connection detected; Aborting!" in cleaned_output:
-        return "no_internet"
-    elif "Please apply the above changes to your portage configuration files and try again." in cleaned_output:
+    if "Please apply the above changes to your portage configuration files and try again." in cleaned_output:
         return "blocked_upgrade"
     elif "The system is up to date; no package upgrades are required." in cleaned_output:
         return "heartbeat"
@@ -77,7 +80,6 @@ def main():
     bus = dbus.SessionBus()
     name = dbus.service.BusName(SERVICE_NAME, bus)
     emitter = MessageEmitter(bus, OBJECT_PATH)
-
     loop = GLib.MainLoop()
 
     def send_periodic():
@@ -92,7 +94,6 @@ def main():
         loop.quit()
 
     signal.signal(signal.SIGTERM, sigterm_handler)
-
     send_periodic()
     loop.run()
     logging.info("Daemon exited cleanly")
