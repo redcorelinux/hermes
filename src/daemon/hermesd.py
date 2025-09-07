@@ -5,6 +5,7 @@ import dbus.service
 import dbus.mainloop.glib
 import sisyphus.checkenv
 import sisyphus.depsolve
+import sisyphus.getfs
 import sisyphus.syncenv
 import sisyphus.syncdb
 import io
