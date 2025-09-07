@@ -7,7 +7,7 @@ from collections import OrderedDict
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
 
-IGNORE_FILE = os.path.expanduser("~/.sisyphus_upgrade_ignore")
+IGNORE_FILE = os.path.expanduser("~/.hermes_upgrade_ignore")
 AUTOSTART_DIR = os.path.expanduser("~/.config/autostart")
 AUTOSTART_FILE = os.path.join(AUTOSTART_DIR, "hermes.desktop")
 
@@ -54,10 +54,6 @@ class SysTrayListener(QtCore.QObject):
         self.menu.addAction(self.remove_autostart_action)
 
         self.menu.addSeparator()
-
-        launch_action = QtGui.QAction("Launch Sisyphus GUI", self.menu)
-        launch_action.triggered.connect(self.launch_main_app)
-        self.menu.addAction(launch_action)
 
         quit_action = QtGui.QAction("Quit", self.menu)
         quit_action.triggered.connect(self.quit_app)
@@ -112,12 +108,6 @@ class SysTrayListener(QtCore.QObject):
         except Exception:
             return False
 
-    def launch_main_app(self):
-        try:
-            subprocess.Popen(['sisyphus-gui-pkexec'])
-        except Exception:
-            pass
-
     @QtCore.pyqtSlot(str)
     def on_message_received(self, message):
         self.heartbeat_timer.start()
@@ -129,14 +119,14 @@ class SysTrayListener(QtCore.QObject):
                 QtWidgets.QSystemTrayIcon.MessageIcon.Warning
             )
 
-        elif message = "blocked_sync":
+        elif message == "blocked_sync":
             self.tray.showMessage(
                 "Sync Failure",
                 "Unable to sync the portage tree and overlays to check for system upgrade.",
                 QtWidgets.QSystemTrayIcon.MessageIcon.Warning
             )
 
-        elif message = "check_failed":
+        elif message == "check_failed":
             self.tray.showMessage(
                 "Check Failure",
                 "Unable to check for system upgrade.",
@@ -195,7 +185,7 @@ Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
 Name=Hermes
-Comment=System tray notifications for Sisyphus upgrades
+Comment=Tray notifications for system upgrades
 """
             with open(AUTOSTART_FILE, 'w') as f:
                 f.write(desktop_entry)

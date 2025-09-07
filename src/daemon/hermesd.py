@@ -97,7 +97,7 @@ def check_update():
             src_list.append(is_src)
 
     pickle.dump([bin_list, src_list, need_cfg],
-                open("/tmp/sisyphus_worlddeps.pickle", "wb"))
+                open("/tmp/hermes_worlddeps.pickle", "wb"))
 
 
 def get_update_status():
@@ -119,7 +119,7 @@ def get_update_status():
         return "check_failed"
 
     bin_list, src_list, need_cfg = pickle.load(
-        open("/tmp/sisyphus_worlddeps.pickle", "rb"))
+        open("/tmp/hermes_worlddeps.pickle", "rb"))
 
     if need_cfg != int(0):
         logging.error("Portage configuration failure!")
