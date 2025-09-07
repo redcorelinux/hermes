@@ -4,6 +4,7 @@ import dbus
 import dbus.service
 import dbus.mainloop.glib
 import io
+import os
 import sys
 import signal
 import subprocess
@@ -24,6 +25,7 @@ logging.basicConfig(
     format='%(asctime)s %(levelname)s: %(message)s'
 )
 
+
 def is_valid_url(url):
     regex = re.compile(
         r'^(http|https)://'
@@ -33,6 +35,7 @@ def is_valid_url(url):
         r'(/.*)?$'
     )
     return re.match(regex, url) is not None
+
 
 def check_internet():
     is_online = int()
@@ -55,6 +58,7 @@ def check_internet():
 
     return is_online
 
+
 def check_update():
     bin_list = []
     src_list = []
@@ -66,39 +70,35 @@ def check_update():
     p_exe = subprocess.Popen(
         ['emerge'] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    try:
-        stdout, stderr = p_exe.communicate()
+    stdout, stderr = p_exe.communicate()
 
-        stdout_lines = stdout.decode('utf-8').splitlines()
-        stderr_lines = stderr.decode('utf-8').splitlines()
-        combined_output = stdout_lines + stderr_lines
+    stdout_lines = stdout.decode('utf-8').splitlines()
+    stderr_lines = stderr.decode('utf-8').splitlines()
+    combined_output = stdout_lines + stderr_lines
 
-        config_patterns = [
-            r"The following .* changes are necessary to proceed",
-            r"REQUIRED_USE flag constraints are unsatisfied",
-            r"masked packages.*required to complete your request"
-        ]
+    config_patterns = [
+        r"The following .* changes are necessary to proceed",
+        r"REQUIRED_USE flag constraints are unsatisfied",
+        r"masked packages.*required to complete your request"
+    ]
 
-        need_cfg = int(any(
-            any(re.search(p, line) for p in config_patterns)
-            for line in combined_output
-        ))
+    need_cfg = int(any(
+        any(re.search(p, line) for p in config_patterns)
+        for line in combined_output
+    ))
 
-        for p_out in stdout_lines:
-            if "[binary" in p_out:
-                is_bin = p_out.split("]")[1].split("[")[0].strip()
-                bin_list.append(is_bin)
+    for p_out in stdout_lines:
+        if "[binary" in p_out:
+            is_bin = p_out.split("]")[1].split("[")[0].strip()
+            bin_list.append(is_bin)
 
-            if "[ebuild" in p_out:
-                is_src = p_out.split("]")[1].split("[")[0].strip()
-                src_list.append(is_src)
+        if "[ebuild" in p_out:
+            is_src = p_out.split("]")[1].split("[")[0].strip()
+            src_list.append(is_src)
 
-        pickle.dump([bin_list, src_list, need_cfg],
-                    open("/tmp/sisyphus_worlddeps.pickle", "wb"))
+    pickle.dump([bin_list, src_list, need_cfg],
+                open("/tmp/sisyphus_worlddeps.pickle", "wb"))
 
-    except Exception as e:
-        logging.error("Upgrade check failed!")
-        return "check_failed"
 
 def get_update_status():
     is_online = check_internet()
@@ -111,6 +111,12 @@ def get_update_status():
         except Exception as e:
             logging.error(f"'emerge --sync' failed: {e}")
             return "blocked_sync"
+
+    try:
+        check_update()
+    except Exception as e:
+        logging.error("Upgrade check failed!")
+        return "check_failed"
 
     bin_list, src_list, need_cfg = pickle.load(
         open("/tmp/sisyphus_worlddeps.pickle", "rb"))
@@ -126,6 +132,7 @@ def get_update_status():
             logging.info("System upgrade available!")
             return "upgrade_available"
 
+
 class MessageEmitter(dbus.service.Object):
     def __init__(self, bus, object_path):
         super().__init__(bus, object_path)
@@ -140,8 +147,10 @@ class MessageEmitter(dbus.service.Object):
         logging.info(f"GetStatus called; returning: {status}")
         return status
 
+
 def send_message(emitter, msg):
     emitter.MessageSent(msg)
+
 
 def main():
     logging.info("Daemon starting")
@@ -168,6 +177,7 @@ def main():
     send_periodic()
     loop.run()
     logging.info("Daemon exited cleanly")
+
 
 if __name__ == '__main__':
     main()
