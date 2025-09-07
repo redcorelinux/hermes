@@ -122,13 +122,7 @@ class SysTrayListener(QtCore.QObject):
     def on_message_received(self, message):
         self.heartbeat_timer.start()
 
-        if message == "sisyphus_exception":
-            self.tray.showMessage(
-                "Sisyphus Upgrade Exception",
-                "An exception occurred in the Sisyphus upgrade subsystem, stopping communication.",
-                QtWidgets.QSystemTrayIcon.MessageIcon.Critical
-            )
-        elif message == "no_internet":
+        if message == "no_internet":
             self.tray.showMessage(
                 "No Internet Connection",
                 "Unable to check for system upgrade because no internet connection is available.",
@@ -139,6 +133,13 @@ class SysTrayListener(QtCore.QObject):
             self.tray.showMessage(
                 "Sync Failure",
                 "Unable to sync the portage tree and overlays to check for system upgrade.",
+                QtWidgets.QSystemTrayIcon.MessageIcon.Warning
+            )
+
+        elif message = "check_failed":
+            self.tray.showMessage(
+                "Check Failure",
+                "Unable to check for system upgrade.",
                 QtWidgets.QSystemTrayIcon.MessageIcon.Warning
             )
 

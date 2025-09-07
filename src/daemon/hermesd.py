@@ -8,7 +8,10 @@ import sys
 import signal
 import subprocess
 import logging
-import socket
+import re
+import pickle
+import urllib.request
+from urllib.error import HTTPError, URLError
 from gi.repository import GLib
 
 SERVICE_NAME = 'org.hermesd.MessageService'
@@ -21,7 +24,6 @@ logging.basicConfig(
     format='%(asctime)s %(levelname)s: %(message)s'
 )
 
-
 def is_valid_url(url):
     regex = re.compile(
         r'^(http|https)://'
@@ -31,7 +33,6 @@ def is_valid_url(url):
         r'(/.*)?$'
     )
     return re.match(regex, url) is not None
-
 
 def check_internet():
     is_online = int()
@@ -44,21 +45,65 @@ def check_internet():
     try:
         urllib.request.urlopen(url, timeout=5)
         is_online = int(1)
-    except urllib.error.HTTPError as e:
+    except HTTPError as e:
         if e.code == 429:
             is_online = int(1)  # ignore rate limiting errors
         else:
             is_online = int(1)  # ignore all other http errors
-    except urllib.error.URLError:
+    except URLError:
         is_online = int(0)
 
     return is_online
 
+def check_update():
+    bin_list = []
+    src_list = []
+    need_cfg = int(0)
+
+    args = ['--quiet', '--update', '--deep', '--newuse', '--pretend', '--getbinpkg', '--rebuilt-binaries',
+            '--backtrack=100', '--with-bdeps=y', '--misspell-suggestion=n', '--fuzzy-search=n', '@world']
+
+    p_exe = subprocess.Popen(
+        ['emerge'] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    try:
+        stdout, stderr = p_exe.communicate()
+
+        stdout_lines = stdout.decode('utf-8').splitlines()
+        stderr_lines = stderr.decode('utf-8').splitlines()
+        combined_output = stdout_lines + stderr_lines
+
+        config_patterns = [
+            r"The following .* changes are necessary to proceed",
+            r"REQUIRED_USE flag constraints are unsatisfied",
+            r"masked packages.*required to complete your request"
+        ]
+
+        need_cfg = int(any(
+            any(re.search(p, line) for p in config_patterns)
+            for line in combined_output
+        ))
+
+        for p_out in stdout_lines:
+            if "[binary" in p_out:
+                is_bin = p_out.split("]")[1].split("[")[0].strip()
+                bin_list.append(is_bin)
+
+            if "[ebuild" in p_out:
+                is_src = p_out.split("]")[1].split("[")[0].strip()
+                src_list.append(is_src)
+
+        pickle.dump([bin_list, src_list, need_cfg],
+                    open("/tmp/sisyphus_worlddeps.pickle", "wb"))
+
+    except Exception as e:
+        logging.error("Upgrade check failed!")
+        return "check_failed"
 
 def get_update_status():
-    is online = check_internet()
-    if is_online != 1:
-        logging.info("Internet check failed")
+    is_online = check_internet()
+    if is_online != int(1):
+        logging.error("Internet check failed!")
         return "no_internet"
     else:
         try:
@@ -67,33 +112,19 @@ def get_update_status():
             logging.error(f"'emerge --sync' failed: {e}")
             return "blocked_sync"
 
-    buffer = io.StringIO()
-    old_stdout = sys.stdout
-    sys.stdout = buffer
+    bin_list, src_list, need_cfg = pickle.load(
+        open("/tmp/sisyphus_worlddeps.pickle", "rb"))
 
-    try:
-        sisyphus.sysupgrade.start(
-            ask=False, ebuild=True, gfx_ui=False, pretend=True)
-    except SystemExit:
-        pass
-    except Exception as e:
-        sys.stdout = old_stdout
-        logging.error(f"Exception in sysupgrade: {e}")
-        return "sisyphus_exception"
-
-    sys.stdout = old_stdout
-
-    output = buffer.getvalue()
-    cleaned_output = output.replace('\n', ' ').strip()
-    logging.info(f"Upgrade check output: {cleaned_output}")
-
-    if "Please apply the above changes to your portage configuration files" in cleaned_output:
+    if need_cfg != int(0):
+        logging.error("Portage configuration failure!")
         return "blocked_upgrade"
-    elif "The system is up to date" in cleaned_output:
-        return "heartbeat"
     else:
-        return "upgrade_available"
-
+        if len(bin_list) == 0 and len(src_list) == 0:
+            logging.info("System up to date!")
+            return "heartbeat"
+        else:
+            logging.info("System upgrade available!")
+            return "upgrade_available"
 
 class MessageEmitter(dbus.service.Object):
     def __init__(self, bus, object_path):
@@ -109,10 +140,8 @@ class MessageEmitter(dbus.service.Object):
         logging.info(f"GetStatus called; returning: {status}")
         return status
 
-
 def send_message(emitter, msg):
     emitter.MessageSent(msg)
-
 
 def main():
     logging.info("Daemon starting")
@@ -139,7 +168,6 @@ def main():
     send_periodic()
     loop.run()
     logging.info("Daemon exited cleanly")
-
 
 if __name__ == '__main__':
     main()
