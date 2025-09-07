@@ -4,11 +4,14 @@ import dbus
 import dbus.service
 import dbus.mainloop.glib
 import sisyphus.checkenv
+import sisyphus.depsolve
 import sisyphus.syncenv
 import sisyphus.syncdb
 import io
+import os
 import sys
 import signal
+import pickle
 import logging
 from gi.repository import GLib
 
@@ -32,39 +35,35 @@ def get_update_status():
         return "no_internet"
     else:
         if is_sane == 1:
-            sisyphus.syncenv.g_repo()
-            sisyphus.syncenv.r_repo()
-            sisyphus.syncenv.p_cfg_repo()
-            sisyphus.syncdb.rmt_tbl()
+            try:
+                sisyphus.syncenv.g_repo()
+                sisyphus.syncenv.r_repo()
+                sisyphus.syncenv.p_cfg_repo()
+                sisyphus.syncdb.rmt_tbl()
+            except Exception as e:
+                return "blocked_sync"
         else:
             return "blocked_sync"
 
-    buffer = io.StringIO()
-    old_stdout = sys.stdout
-    sys.stdout = buffer
-
     try:
-        sisyphus.sysupgrade.start(
-            ask=False, ebuild=True, gfx_ui=False, pretend=True)
-    except SystemExit:
-        pass
+        sisyphus.depsolve.start.__wrapped__()
     except Exception as e:
-        sys.stdout = old_stdout
-        logging.error(f"Exception in sysupgrade: {e}")
-        return "sisyphus_exception"
+        logging.error("Upgrade check failed!")
+        return "check_failed"
 
-    sys.stdout = old_stdout
+    bin_list, src_list, is_missing, is_vague, need_cfg = pickle.load(
+        open(os.path.join(sisyphus.getfs.p_mtd_dir, "sisyphus_worlddeps.pickle"), "rb"))
 
-    output = buffer.getvalue()
-    cleaned_output = output.replace('\n', ' ').strip()
-    logging.info(f"Upgrade check output: {cleaned_output}")
-
-    if "Please apply the above changes to your portage configuration files and try again." in cleaned_output:
+    if need_cfg != int(0):
+        logging.error("Portage configuration failure!")
         return "blocked_upgrade"
-    elif "The system is up to date; no package upgrades are required." in cleaned_output:
-        return "heartbeat"
     else:
-        return "upgrade_available"
+        if len(bin_list) == 0 and len(src_list) == 0:
+            logging.info("System up to date!")
+            return "heartbeat"
+        else:
+            logging.info("System upgrade available!")
+            return "upgrade_available"
 
 
 class MessageEmitter(dbus.service.Object):
