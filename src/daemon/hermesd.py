@@ -4,7 +4,6 @@ import dbus
 import dbus.service
 import dbus.mainloop.glib
 import io
-import os
 import sys
 import signal
 import subprocess
