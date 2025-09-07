@@ -7,7 +7,7 @@ from collections import OrderedDict
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
 
-IGNORE_FILE = os.path.expanduser("~/.sisyphus_upgrade_ignore")
+IGNORE_FILE = os.path.expanduser("~/.hermes_upgrade_ignore")
 AUTOSTART_DIR = os.path.expanduser("~/.config/autostart")
 AUTOSTART_FILE = os.path.join(AUTOSTART_DIR, "hermes.desktop")
 
@@ -195,7 +195,7 @@ Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
 Name=Hermes
-Comment=System tray notifications for Sisyphus upgrades
+Comment=Tray notifications for system upgrades
 """
             with open(AUTOSTART_FILE, 'w') as f:
                 f.write(desktop_entry)
