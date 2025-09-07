@@ -106,7 +106,11 @@ def main():
 
     signal.signal(signal.SIGTERM, sigterm_handler)
     send_periodic()
-    loop.run()
+    try:
+        loop.run()
+    except KeyboardInterrupt:
+        logging.info("Keyboard interrupt received, quitting main loop")
+        loop.quit()
     logging.info("Daemon exited cleanly")
 
 
