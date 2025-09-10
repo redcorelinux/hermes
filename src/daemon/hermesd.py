@@ -113,7 +113,7 @@ def get_update_status():
 
     try:
         check_update()
-    except Exception as e:
+    except Exception:
         logging.error("Upgrade check failed!")
         return "check_failed"
 
