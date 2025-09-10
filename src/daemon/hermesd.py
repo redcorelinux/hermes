@@ -41,14 +41,14 @@ def get_update_status():
                 sisyphus.syncenv.r_repo()
                 sisyphus.syncenv.p_cfg_repo()
                 sisyphus.syncdb.rmt_tbl()
-            except Exception as e:
+            except Exception:
                 return "blocked_sync"
         else:
             return "blocked_sync"
 
     try:
         sisyphus.depsolve.start.__wrapped__()
-    except Exception as e:
+    except Exception:
         logging.error("Upgrade check failed!")
         return "check_failed"
 
