@@ -31,11 +31,11 @@ def get_update_status():
     is_online = sisyphus.checkenv.connectivity()
     is_sane = sisyphus.checkenv.sanity()
 
-    if is_online != 1:
+    if is_online != int(1):
         logging.info("Connectivity check failed")
         return "no_internet"
     else:
-        if is_sane == 1:
+        if is_sane == int(1):
             try:
                 sisyphus.syncenv.g_repo()
                 sisyphus.syncenv.r_repo()
