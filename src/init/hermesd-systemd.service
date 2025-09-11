@@ -1,0 +1,18 @@
+[Unit]
+Description=System Upgrade Watchdog Service
+After=network.target
+Requires=dbus.service
+Wants=logger.service
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/hermesd.py
+PIDFile=/run/hermesd.pid
+StandardOutput=append:/var/log/hermes-daemon.log
+StandardError=inherit
+Restart=on-failure
+RuntimeDirectory=hermesd
+RuntimeDirectoryMode=0755
+
+[Install]
+WantedBy=multi-user.target

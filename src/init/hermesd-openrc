@@ -1,7 +1,7 @@
 #!/sbin/openrc-run
 
 name="hermesd"
-description="Sisyphus Upgrade Watchdog Service"
+description="System Upgrade Watchdog Service"
 
 command="/usr/libexec/hermesd.py"
 
@@ -22,7 +22,6 @@ start_pre() {
 
 start() {
     ebegin "Starting ${name}"
-    # Redirect stdout and stderr to logfile
     start-stop-daemon --start --background --make-pidfile --pidfile "${pidfile}" \
         --exec "${command}" -- ${command_args} >> "${logfile}" 2>&1
     eend $?
