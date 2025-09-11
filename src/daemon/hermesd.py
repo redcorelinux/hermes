@@ -31,7 +31,7 @@ def get_update_status():
     is_sane = sisyphus.checkenv.sanity()
 
     if is_online != int(1):
-        logging.info("Connectivity check failed")
+        logging.error("Connectivity check failed")
         return "no_internet"
     else:
         if is_sane == int(1):
@@ -41,8 +41,10 @@ def get_update_status():
                 sisyphus.syncenv.p_cfg_repo()
                 sisyphus.syncdb.rmt_tbl()
             except Exception:
+                logging.error("Portage tree && overlay sync failed!")
                 return "blocked_sync"
         else:
+            logging.error("Portage tree && overlay sync failed!")
             return "blocked_sync"
 
     try:
