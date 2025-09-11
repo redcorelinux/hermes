@@ -101,7 +101,7 @@ def check_update():
 def get_update_status():
     is_online = check_internet()
     if is_online != int(1):
-        logging.error("Internet check failed!")
+        logging.error("Connectivity check failed!")
         return "no_internet"
     else:
         try:
