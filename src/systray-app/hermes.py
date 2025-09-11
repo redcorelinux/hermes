@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
+
 import sys
 import os
 import time
 import subprocess
+
 from collections import OrderedDict
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
@@ -10,6 +12,10 @@ from PyQt6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
 IGNORE_FILE = os.path.expanduser("~/.hermes_upgrade_ignore")
 AUTOSTART_DIR = os.path.expanduser("~/.config/autostart")
 AUTOSTART_FILE = os.path.join(AUTOSTART_DIR, "hermes.desktop")
+
+SERVICE_NAME = 'org.hermesd.MessageService'
+OBJECT_PATH = '/org/hermesd/MessageObject'
+INTERFACE = 'org.hermesd.MessageInterface'
 
 
 class SysTrayListener(QtCore.QObject):
@@ -65,14 +71,11 @@ class SysTrayListener(QtCore.QObject):
 
         self.tray.setContextMenu(self.menu)
 
-        self.session_bus = QDBusConnection.sessionBus()
-        if not self.session_bus.isConnected():
-            sys.exit(1)
-
-        self.session_bus.connect(
-            "org.hermesd.MessageService",
-            "/org/hermesd/MessageObject",
-            "org.hermesd.MessageInterface",
+        self.session_bus = QDBusConnection.systemBus()
+        connected = self.session_bus.connect(
+            SERVICE_NAME,
+            OBJECT_PATH,
+            INTERFACE,
             "MessageSent",
             self.on_message_received
         )
@@ -121,28 +124,24 @@ class SysTrayListener(QtCore.QObject):
     @QtCore.pyqtSlot(str)
     def on_message_received(self, message):
         self.heartbeat_timer.start()
-
         if message == "no_internet":
             self.tray.showMessage(
                 "No Internet Connection",
                 "Unable to check for system upgrade because no internet connection is available.",
                 QtWidgets.QSystemTrayIcon.MessageIcon.Warning
             )
-
         elif message == "blocked_sync":
             self.tray.showMessage(
                 "Sync Failure",
                 "Unable to sync the portage tree and overlays to check for system upgrade.",
                 QtWidgets.QSystemTrayIcon.MessageIcon.Warning
             )
-
         elif message == "check_failed":
             self.tray.showMessage(
                 "Check Failure",
                 "Unable to check for system upgrade.",
                 QtWidgets.QSystemTrayIcon.MessageIcon.Warning
             )
-
         elif message == "blocked_upgrade":
             if not self.is_ignored():
                 self.tray.showMessage(
@@ -156,7 +155,7 @@ class SysTrayListener(QtCore.QObject):
             if not self.is_ignored():
                 self.tray.showMessage(
                     "System Upgrade",
-                    "System upgrade is  available to improve security, stability and performance.",
+                    "System upgrade is available to improve security, stability and performance.",
                     QtWidgets.QSystemTrayIcon.MessageIcon.Information
                 )
 
@@ -169,9 +168,9 @@ class SysTrayListener(QtCore.QObject):
 
     def query_current_status(self):
         iface = QDBusInterface(
-            "org.hermesd.MessageService",
-            "/org/hermesd/MessageObject",
-            "org.hermesd.MessageInterface",
+            SERVICE_NAME,
+            OBJECT_PATH,
+            INTERFACE,
             self.session_bus
         )
         reply = iface.call("GetStatus")

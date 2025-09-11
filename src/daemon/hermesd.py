@@ -8,7 +8,6 @@ import sisyphus.depsolve
 import sisyphus.getfs
 import sisyphus.syncenv
 import sisyphus.syncdb
-import io
 import os
 import sys
 import signal
@@ -52,8 +51,12 @@ def get_update_status():
         logging.error("Upgrade check failed!")
         return "check_failed"
 
-    bin_list, src_list, is_missing, is_vague, need_cfg = pickle.load(
-        open(os.path.join(sisyphus.getfs.p_mtd_dir, "sisyphus_worlddeps.pickle"), "rb"))
+    try:
+        with open(os.path.join(sisyphus.getfs.p_mtd_dir, "sisyphus_worlddeps.pickle"), "rb") as f:
+            bin_list, src_list, is_missing, is_vague, need_cfg = pickle.load(f)
+    except Exception:
+        logging.error("Upgrade check failed!")
+        return "check_failed"
 
     if need_cfg != int(0):
         logging.error("Portage configuration failure!")
@@ -83,13 +86,14 @@ class MessageEmitter(dbus.service.Object):
 
 
 def send_message(emitter, msg):
+    logging.info(f"Emitting DBus signal: {msg}")
     emitter.MessageSent(msg)
 
 
 def main():
     logging.info("Daemon starting")
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-    bus = dbus.SessionBus()
+    bus = dbus.SystemBus()
     name = dbus.service.BusName(SERVICE_NAME, bus)
     emitter = MessageEmitter(bus, OBJECT_PATH)
     loop = GLib.MainLoop()
