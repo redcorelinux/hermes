@@ -3,6 +3,7 @@
 import sys
 import os
 import time
+import signal
 import subprocess
 
 from collections import OrderedDict
@@ -146,7 +147,7 @@ class SysTrayListener(QtCore.QObject):
             if not self.is_ignored():
                 self.tray.showMessage(
                     "System Upgrade",
-                    "System upgrade is  available to improve security, stability and performance.",
+                    "System upgrade is available to improve security, stability and performance.",
                     QtWidgets.QSystemTrayIcon.MessageIcon.Information
                 )
 
@@ -212,8 +213,14 @@ Comment=Tray notifications for system upgrades
         self.app.exec()
 
 
+def signal_handler(sig, frame):
+    listener.quit_app()
+    sys.exit(0)
+
+
 if __name__ == "__main__":
     listener = SysTrayListener()
+    signal.signal(signal.SIGINT, signal_handler)
     try:
         listener.run()
     except KeyboardInterrupt:
