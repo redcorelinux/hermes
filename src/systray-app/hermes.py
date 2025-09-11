@@ -28,6 +28,10 @@ class SysTrayListener(QtCore.QObject):
         else:
             self.app = QtWidgets.QApplication.instance()
 
+        self.signal_timer = QtCore.QTimer()
+        self.signal_timer.timeout.connect(lambda: None)
+        self.signal_timer.start(100)  # every 100 ms
+
         self.tray = QtWidgets.QSystemTrayIcon(
             QtGui.QIcon.fromTheme("utilities-system-monitor"))
         self.tray.setToolTip("Hermes: System Upgrade Notifications")
