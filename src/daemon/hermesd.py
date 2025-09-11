@@ -3,7 +3,6 @@
 import dbus
 import dbus.service
 import dbus.mainloop.glib
-import io
 import sys
 import signal
 import subprocess
@@ -117,8 +116,12 @@ def get_update_status():
         logging.error("Upgrade check failed!")
         return "check_failed"
 
-    bin_list, src_list, need_cfg = pickle.load(
-        open("/tmp/hermes_worlddeps.pickle", "rb"))
+    try:
+        with bin_list, src_list, need_cfg = pickle.load(open("/tmp/hermes_worlddeps.pickle", "rb")) as f:
+            bin_list, src_list, need_cfg = pickle.load(f)
+    except Exception:
+        logging.error("Upgrade check failed!")
+        return "check_failed"
 
     if need_cfg != int(0):
         logging.error("Portage configuration failure!")
@@ -148,13 +151,14 @@ class MessageEmitter(dbus.service.Object):
 
 
 def send_message(emitter, msg):
+    logging.info(f"Emitting DBus signal: {msg}")
     emitter.MessageSent(msg)
 
 
 def main():
     logging.info("Daemon starting")
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-    bus = dbus.SessionBus()
+    bus = dbus.SystemBus()
     name = dbus.service.BusName(SERVICE_NAME, bus)
     emitter = MessageEmitter(bus, OBJECT_PATH)
 

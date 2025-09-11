@@ -10,6 +10,7 @@ logfile="/var/log/hermes-daemon.log"
 
 depend() {
     after net
+    need dbus
     use logger
 }
 
