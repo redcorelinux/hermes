@@ -29,6 +29,7 @@ class SysTrayListener(QtCore.QObject):
 
         self.tray = QtWidgets.QSystemTrayIcon(
             QtGui.QIcon.fromTheme("utilities-system-monitor"))
+        self.tray.setToolTip("Hermes: System Upgrade Notifications")
         self.tray.setVisible(True)
 
         self.ignore_durations = OrderedDict([
@@ -223,4 +224,8 @@ Comment=Tray notifications for system upgrades
 
 if __name__ == "__main__":
     listener = SysTrayListener()
-    listener.run()
+    try:
+        listener.run()
+    except KeyboardInterrupt:
+        listener.quit_app()
+        sys.exit(0)
