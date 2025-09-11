@@ -3,6 +3,7 @@
 import sys
 import os
 import time
+import signal
 import subprocess
 
 from collections import OrderedDict
@@ -222,8 +223,14 @@ Comment=Tray notifications for system upgrades
         self.app.exec()
 
 
+def signal_handler(sig, frame):
+    listener.quit_app()
+    sys.exit(0)
+
+
 if __name__ == "__main__":
     listener = SysTrayListener()
+    signal.signal(signal.SIGINT, signal_handler)
     try:
         listener.run()
     except KeyboardInterrupt:
