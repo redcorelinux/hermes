@@ -7,6 +7,7 @@ import signal
 import subprocess
 
 from collections import OrderedDict
+
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
 
@@ -24,8 +25,9 @@ class HermesDBusHandler(QtCore.QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+
         self.session_bus = QDBusConnection.systemBus()
-        self.session_bus.connect(
+        connected = self.session_bus.connect(
             SERVICE_NAME,
             OBJECT_PATH,
             INTERFACE,
@@ -80,6 +82,7 @@ class SysTrayGui(QtCore.QObject):
             self.menu.addAction(action)
 
         self.menu.addSeparator()
+
         self.add_autostart_action = QtGui.QAction(
             "Enable Autostart", self.menu)
         self.add_autostart_action.triggered.connect(self.add_to_autostart)
@@ -125,10 +128,7 @@ class SysTrayGui(QtCore.QObject):
                     f.write(str(expiry))
                 text = label[25:] if len(label) > 25 else label
                 self.tray.showMessage(
-                    "Ignore Set",
-                    f"Ignoring upgrade notifications for {text}.",
-                    QtWidgets.QSystemTrayIcon.MessageIcon.Information
-                )
+                    "Ignore Set", f"Ignoring upgrade notifications for {text}.", QtWidgets.QSystemTrayIcon.MessageIcon.Information)
             except Exception:
                 pass
 
@@ -143,47 +143,30 @@ class SysTrayGui(QtCore.QObject):
 
     def handle_message(self, message):
         self.heartbeat_timer.start()
+
         if message == "no_internet":
-            self.tray.showMessage(
-                "No Internet Connection",
-                "Unable to check for system upgrade because no internet connection is available.",
-                QtWidgets.QSystemTrayIcon.MessageIcon.Warning
-            )
+            self.tray.showMessage("No Internet Connection", "Unable to check for system upgrade because no internet connection is available.",
+                                  QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         elif message == "blocked_sync":
-            self.tray.showMessage(
-                "Sync Failure",
-                "Unable to sync the portage tree and overlays to check for system upgrade.",
-                QtWidgets.QSystemTrayIcon.MessageIcon.Warning
-            )
+            self.tray.showMessage("Sync Failure", "Unable to sync the portage tree and overlays to check for system upgrade.",
+                                  QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         elif message == "check_failed":
-            self.tray.showMessage(
-                "Check Failure",
-                "Unable to check for system upgrade.",
-                QtWidgets.QSystemTrayIcon.MessageIcon.Warning
-            )
+            self.tray.showMessage("Check Failure", "Unable to check for system upgrade.",
+                                  QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         elif message == "blocked_upgrade":
             if not self.is_ignored():
-                self.tray.showMessage(
-                    "Blocked Upgrade",
-                    "System upgrade is available but blocked due to portage configuration issues.",
-                    QtWidgets.QSystemTrayIcon.MessageIcon.Warning
-                )
+                self.tray.showMessage("Blocked Upgrade", "System upgrade is available but blocked due to portage configuration issues.",
+                                      QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         elif message == "heartbeat":
             pass
         elif message == "upgrade_available":
             if not self.is_ignored():
-                self.tray.showMessage(
-                    "System Upgrade",
-                    "System upgrade is available to improve security, stability and performance.",
-                    QtWidgets.QSystemTrayIcon.MessageIcon.Information
-                )
+                self.tray.showMessage("System Upgrade", "System upgrade is available to improve security, stability and performance.",
+                                      QtWidgets.QSystemTrayIcon.MessageIcon.Information)
 
     def missed_heartbeat(self):
-        self.tray.showMessage(
-            "Heartbeat Missed",
-            "No heartbeat message received in over 25 hours. The daemon may be offline.",
-            QtWidgets.QSystemTrayIcon.MessageIcon.Warning
-        )
+        self.tray.showMessage("Heartbeat Missed", "No heartbeat message received in over 25 hours. The daemon may be offline.",
+                              QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
 
     def add_to_autostart(self):
         try:
@@ -232,6 +215,10 @@ Comment=Tray notifications for system upgrades
 
     def run(self):
         self.app.exec()
+
+
+def signal_handler(sig, frame):
+    sys.exit(0)
 
 
 if __name__ == "__main__":
