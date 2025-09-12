@@ -4,9 +4,8 @@ import sys
 import os
 import time
 import signal
-import subprocess
-
 from collections import OrderedDict
+
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
 
@@ -19,7 +18,39 @@ OBJECT_PATH = '/org/hermesd/MessageObject'
 INTERFACE = 'org.hermesd.MessageInterface'
 
 
-class SysTrayListener(QtCore.QObject):
+class HermesDBusHandler(QtCore.QObject):
+    messageReceived = QtCore.pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.session_bus = QDBusConnection.systemBus()
+        connected = self.session_bus.connect(
+            SERVICE_NAME,
+            OBJECT_PATH,
+            INTERFACE,
+            "MessageSent",
+            self.handle_message
+        )
+
+    @QtCore.pyqtSlot(str)
+    def handle_message(self, message):
+        self.messageReceived.emit(message)
+
+    def get_status(self):
+        iface = QDBusInterface(
+            SERVICE_NAME,
+            OBJECT_PATH,
+            INTERFACE,
+            self.session_bus
+        )
+        reply = iface.call("GetStatus")
+        if reply.type() == QDBusMessage.MessageType.ReplyMessage:
+            return reply.arguments()[0]
+        return None
+
+
+class SysTrayGui(QtCore.QObject):
     def __init__(self):
         super().__init__()
 
@@ -28,15 +59,6 @@ class SysTrayListener(QtCore.QObject):
         else:
             self.app = QtWidgets.QApplication.instance()
 
-        self.signal_timer = QtCore.QTimer()
-        self.signal_timer.timeout.connect(lambda: None)
-        self.signal_timer.start(100)  # every 100 ms
-
-        self.tray = QtWidgets.QSystemTrayIcon(
-            QtGui.QIcon.fromTheme("utilities-system-monitor"))
-        self.tray.setToolTip("Hermes: System Upgrade Notifications")
-        self.tray.setVisible(True)
-
         self.ignore_durations = OrderedDict([
             ("Ignore notifications for 1 day", 24*3600),
             ("Ignore notifications for 7 days", 7*24*3600),
@@ -44,6 +66,11 @@ class SysTrayListener(QtCore.QObject):
             ("Ignore notifications for 30 days", 30*24*3600),
             ("Receive notifications", 0)
         ])
+
+        self.tray = QtWidgets.QSystemTrayIcon(
+            QtGui.QIcon.fromTheme("utilities-system-monitor"))
+        self.tray.setToolTip("Hermes: System Upgrade Notifications")
+        self.tray.setVisible(True)
 
         self.menu = QtWidgets.QMenu()
         for label in self.ignore_durations:
@@ -73,30 +100,23 @@ class SysTrayListener(QtCore.QObject):
 
         self.tray.setContextMenu(self.menu)
 
-        self.session_bus = QDBusConnection.systemBus()
-        connected = self.session_bus.connect(
-            SERVICE_NAME,
-            OBJECT_PATH,
-            INTERFACE,
-            "MessageSent",
-            self.on_message_received
-        )
-
-        QtCore.QTimer.singleShot(
-            15 * 60 * 1000, self.query_current_status)  # 15 minutes delay
-
         self.heartbeat_timer = QtCore.QTimer()
         self.heartbeat_timer.setInterval(25 * 3600 * 1000)  # 25 hours
         self.heartbeat_timer.timeout.connect(self.missed_heartbeat)
         self.heartbeat_timer.start()
+
+        self.signal_timer = QtCore.QTimer()
+        self.signal_timer.timeout.connect(lambda: None)
+        self.signal_timer.start(100)  # every 100 ms
 
     def set_ignore(self, label):
         duration = self.ignore_durations[label]
         if duration == 0:
             if os.path.exists(IGNORE_FILE):
                 os.remove(IGNORE_FILE)
-            self.tray.showMessage("Ignore Cleared", "Receive upgrade notifications.",
-                                  QtWidgets.QSystemTrayIcon.MessageIcon.Information)
+            self.tray.showMessage(
+                "Ignore Cleared", "Receive upgrade notifications.",
+                QtWidgets.QSystemTrayIcon.MessageIcon.Information)
         else:
             expiry = int(time.time()) + duration
             try:
@@ -104,7 +124,10 @@ class SysTrayListener(QtCore.QObject):
                     f.write(str(expiry))
                 text = label[25:] if len(label) > 25 else label
                 self.tray.showMessage(
-                    "Ignore Set", f"Ignoring upgrade notifications for {text}.", QtWidgets.QSystemTrayIcon.MessageIcon.Information)
+                    "Ignore Set",
+                    f"Ignoring upgrade notifications for {text}.",
+                    QtWidgets.QSystemTrayIcon.MessageIcon.Information
+                )
             except Exception:
                 pass
 
@@ -117,9 +140,9 @@ class SysTrayListener(QtCore.QObject):
         except Exception:
             return False
 
-    @QtCore.pyqtSlot(str)
-    def on_message_received(self, message):
+    def handle_message(self, message):
         self.heartbeat_timer.start()
+
         if message == "no_internet":
             self.tray.showMessage(
                 "No Internet Connection",
@@ -162,22 +185,6 @@ class SysTrayListener(QtCore.QObject):
             QtWidgets.QSystemTrayIcon.MessageIcon.Warning
         )
 
-    def query_current_status(self):
-        iface = QDBusInterface(
-            SERVICE_NAME,
-            OBJECT_PATH,
-            INTERFACE,
-            self.session_bus
-        )
-        reply = iface.call("GetStatus")
-        if reply.type() == QDBusMessage.MessageType.ReplyMessage:
-            message = reply.arguments()[0]
-            self.on_message_received(message)
-
-    def quit_app(self):
-        self.tray.hide()
-        self.app.quit()
-
     def add_to_autostart(self):
         try:
             if not os.path.exists(AUTOSTART_DIR):
@@ -195,38 +202,60 @@ Comment=Tray notifications for system upgrades
             with open(AUTOSTART_FILE, 'w') as f:
                 f.write(desktop_entry)
             self.tray.showMessage(
-                "Autostart Enabled", "", QtWidgets.QSystemTrayIcon.MessageIcon.Information)
+                "Autostart Enabled", "",
+                QtWidgets.QSystemTrayIcon.MessageIcon.Information)
         except Exception:
             self.tray.showMessage(
-                "Autostart Enable Failed", "", QtWidgets.QSystemTrayIcon.MessageIcon.Critical)
+                "Autostart Enable Failed", "",
+                QtWidgets.QSystemTrayIcon.MessageIcon.Critical)
 
     def remove_from_autostart(self):
         try:
             if os.path.exists(AUTOSTART_FILE):
                 os.remove(AUTOSTART_FILE)
                 self.tray.showMessage(
-                    "Autostart Disabled", "", QtWidgets.QSystemTrayIcon.MessageIcon.Information)
+                    "Autostart Disabled", "",
+                    QtWidgets.QSystemTrayIcon.MessageIcon.Information)
             else:
                 self.tray.showMessage(
-                    "Autostart Not Found", "", QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
+                    "Autostart Not Found", "",
+                    QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         except Exception:
             self.tray.showMessage(
-                "Autostart Disable Failed", "", QtWidgets.QSystemTrayIcon.MessageIcon.Critical)
+                "Autostart Disable Failed", "",
+                QtWidgets.QSystemTrayIcon.MessageIcon.Critical)
+
+    def quit_app(self):
+        self.tray.hide()
+        self.app.quit()
 
     def run(self):
         self.app.exec()
 
 
 def signal_handler(sig, frame):
-    listener.quit_app()
     sys.exit(0)
 
 
 if __name__ == "__main__":
-    listener = SysTrayListener()
-    signal.signal(signal.SIGINT, signal_handler)
-    try:
-        listener.run()
-    except KeyboardInterrupt:
-        listener.quit_app()
-        sys.exit(0)
+    if not QtWidgets.QApplication.instance():
+        app = QtWidgets.QApplication(sys.argv)
+    else:
+        app = QtWidgets.QApplication.instance()
+
+    dbus_handler = HermesDBusHandler()
+    gui = SysTrayGui()
+    dbus_handler.messageReceived.connect(gui.handle_message)
+
+    # Query current status after 15 minutes delay
+    def delayed_status_query():
+        status = dbus_handler.get_status()
+        if status:
+            gui.handle_message(status)
+
+    QtCore.QTimer.singleShot(15 * 60 * 1000, delayed_status_query)
+
+    signal.signal(signal.SIGINT, lambda sig, frame: gui.quit_app())
+    signal.signal(signal.SIGTERM, lambda sig, frame: gui.quit_app())
+
+    gui.run()
