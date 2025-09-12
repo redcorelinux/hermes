@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 
-import dbus
-import dbus.service
-import dbus.mainloop.glib
-import sisyphus.checkenv
-import sisyphus.depsolve
-import sisyphus.getfs
-import sisyphus.syncenv
-import sisyphus.syncdb
 import os
 import sys
 import signal
 import pickle
 import logging
+
+import dbus
+import dbus.service
+import dbus.mainloop.glib
 from gi.repository import GLib
+
+import sisyphus.checkenv
+import sisyphus.depsolve
+import sisyphus.getfs
+import sisyphus.syncenv
+import sisyphus.syncdb
 
 SERVICE_NAME = 'org.hermesd.MessageService'
 OBJECT_PATH = '/org/hermesd/MessageObject'
@@ -24,6 +26,21 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s %(levelname)s: %(message)s'
 )
+
+
+class MessageEmitter(dbus.service.Object):
+    def __init__(self, bus, object_path):
+        super().__init__(bus, object_path)
+
+    @dbus.service.signal(dbus_interface=INTERFACE, signature='s')
+    def MessageSent(self, message):
+        logging.info(f"Signal emitted: {message}")
+
+    @dbus.service.method(dbus_interface=INTERFACE, in_signature='', out_signature='s')
+    def GetStatus(self):
+        status = get_update_status()
+        logging.info(f"GetStatus called; returning: {status}")
+        return status
 
 
 def get_update_status():
@@ -70,21 +87,6 @@ def get_update_status():
         else:
             logging.info("System upgrade available!")
             return "upgrade_available"
-
-
-class MessageEmitter(dbus.service.Object):
-    def __init__(self, bus, object_path):
-        super().__init__(bus, object_path)
-
-    @dbus.service.signal(dbus_interface=INTERFACE, signature='s')
-    def MessageSent(self, message):
-        logging.info(f"Signal emitted: {message}")
-
-    @dbus.service.method(dbus_interface=INTERFACE, in_signature='', out_signature='s')
-    def GetStatus(self):
-        status = get_update_status()
-        logging.info(f"GetStatus called; returning: {status}")
-        return status
 
 
 def send_message(emitter, msg):
