@@ -21,6 +21,9 @@ SERVICE_NAME = 'org.hermesd.MessageService'
 OBJECT_PATH = '/org/hermesd/MessageObject'
 INTERFACE = 'org.hermesd.MessageInterface'
 
+HEARTBEAT_INTERVAL = 2700   # 45 minutes
+STATUS_INTERVAL = 43200     # 12 hours
+
 logging.basicConfig(
     stream=sys.stdout,
     level=logging.INFO,
@@ -35,6 +38,10 @@ class MessageEmitter(dbus.service.Object):
     @dbus.service.signal(dbus_interface=INTERFACE, signature='s')
     def MessageSent(self, message):
         logging.info(f"Signal emitted: {message}")
+
+    @dbus.service.signal(dbus_interface=INTERFACE, signature='')
+    def Heartbeat(self):
+        logging.info("Heartbeat signal emitted")
 
     @dbus.service.method(dbus_interface=INTERFACE, in_signature='', out_signature='s')
     def GetStatus(self):
@@ -106,7 +113,12 @@ def main():
         status = get_update_status()
         logging.info(f"Periodic send message: {status}")
         send_message(emitter, status)
-        GLib.timeout_add_seconds(86400, send_periodic)  # every 24h
+        GLib.timeout_add_seconds(STATUS_INTERVAL, send_periodic)
+        return False
+
+    def send_heartbeat():
+        emitter.Heartbeat()
+        GLib.timeout_add_seconds(HEARTBEAT_INTERVAL, send_heartbeat)
         return False
 
     def sigterm_handler(signum, frame):
@@ -115,6 +127,7 @@ def main():
 
     signal.signal(signal.SIGTERM, sigterm_handler)
     send_periodic()
+    send_heartbeat()
     try:
         loop.run()
     except KeyboardInterrupt:
