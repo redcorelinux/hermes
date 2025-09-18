@@ -23,7 +23,7 @@ OBJECT_PATH = '/org/hermesd/MessageObject'
 INTERFACE = 'org.hermesd.MessageInterface'
 
 HEARTBEAT_INTERVAL = 2700   # 45 minutes
-STATUS_INTERVAL = 43200     # 12 hours
+STATUS_INTERVAL = 21600     # 6 hours
 
 logging.basicConfig(
     stream=sys.stdout,
