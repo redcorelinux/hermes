@@ -182,7 +182,7 @@ class SysTrayGui(QtCore.QObject):
                                       QtWidgets.QSystemTrayIcon.MessageIcon.Information)
         elif message == "up_to_date":
             if not self.is_ignored():
-                self.tray.showMessage("Up to date", "The system is up to date, will check again in 12 hours.",
+                self.tray.showMessage("Up to date", "The system is up to date, will check again in 6 hours.",
                                       QtWidgets.QSystemTrayIcon.MessageIcon.Information)
 
     def handle_heartbeat(self):
