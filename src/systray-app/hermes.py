@@ -20,22 +20,34 @@ INTERFACE = 'org.hermesd.MessageInterface'
 
 class HermesDBusHandler(QtCore.QObject):
     messageReceived = QtCore.pyqtSignal(str)
+    heartbeatReceived = QtCore.pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
         self.session_bus = QDBusConnection.systemBus()
-        connected = self.session_bus.connect(
+        self.session_bus.connect(
             SERVICE_NAME,
             OBJECT_PATH,
             INTERFACE,
             "MessageSent",
             self.handle_message
         )
+        self.session_bus.connect(
+            SERVICE_NAME,
+            OBJECT_PATH,
+            INTERFACE,
+            "Heartbeat",
+            self.handle_heartbeat
+        )
 
     @QtCore.pyqtSlot(str)
     def handle_message(self, message):
         self.messageReceived.emit(message)
+
+    @QtCore.pyqtSlot()
+    def handle_heartbeat(self):
+        self.heartbeatReceived.emit()
 
     def get_status(self):
         iface = QDBusInterface(
@@ -101,7 +113,7 @@ class SysTrayGui(QtCore.QObject):
         self.tray.setContextMenu(self.menu)
 
         self.heartbeat_timer = QtCore.QTimer()
-        self.heartbeat_timer.setInterval(25 * 3600 * 1000)  # 25 hours
+        self.heartbeat_timer.setInterval(1 * 3600 * 1000)  # 1 hour
         self.heartbeat_timer.timeout.connect(self.missed_heartbeat)
         self.heartbeat_timer.start()
 
@@ -159,8 +171,11 @@ class SysTrayGui(QtCore.QObject):
                 self.tray.showMessage("System Upgrade", "System upgrade is available to improve security, stability and performance.",
                                       QtWidgets.QSystemTrayIcon.MessageIcon.Information)
 
+    def handle_heartbeat(self):
+        self.heartbeat_timer.start()
+
     def missed_heartbeat(self):
-        self.tray.showMessage("Heartbeat Missed", "No heartbeat message received in over 25 hours. The daemon may be offline.",
+        self.tray.showMessage("Heartbeat Missed", "No heartbeat message received in over 1 hour. The daemon may be offline.",
                               QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
 
     def add_to_autostart(self):
@@ -219,6 +234,7 @@ if __name__ == "__main__":
     dbus_handler = HermesDBusHandler()
     gui = SysTrayGui()
     dbus_handler.messageReceived.connect(gui.handle_message)
+    dbus_handler.heartbeatReceived.connect(gui.handle_heartbeat)
 
     # Query current status after 15 minutes delay
     def delayed_status_query():
