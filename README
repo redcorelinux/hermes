@@ -1,0 +1,21 @@
+Hermes is a daemon and system tray application pair designed to monitor and notify users about package upgrades on Gentoo Linux and 
+Gentoo-derived distributions. It offers a user-friendly interface with background checks to help keep the system up-to-date without
+manual intervention.
+
+
+The redcore branch is developed using Redcore Linux's Sisyphus API. It leverages the Sisyphus/Portage abstractions unique to Redcore Linux, 
+providing tight integration and optimized functionality tailored specifically for Redcore users.
+
+
+The gentoo branch is developed to be compatible with Gentoo and any Gentoo-derived distributions using Portage. This branch avoids abstraction 
+layers and instead relies on standard Gentoo tools and methods to ensure reliable upgrade checking and notifications across these systems.
+
+
+Both branches deliver the same core functionality—monitoring for package upgrades and notifying the user—but utilize different methods according 
+to their target distributions.
+
+
+Runs as a background daemon to periodically check for system updates.
+Provides a system tray application to notify users about available package upgrades.
+Supports seamless monitoring on both Redcore Linux (master branch) and Gentoo-based distributions (gentoo branch).
+Simplifies keeping Gentoo and its derivatives up-to-date through timely upgrade alerts.
