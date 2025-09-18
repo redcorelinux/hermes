@@ -121,6 +121,33 @@ def check_update():
                 open("/tmp/hermes_worlddeps.pickle", "wb"))
 
 
+def check_orphans():
+    pattern = r'(\b[a-zA-Z0-9-_]+/[a-zA-Z0-9-_]+):\s+([0-9]+(?:\.[0-9]+){0,4})(_[a-zA-Z0-9]+)?(-r[1-9][0-9]*)?'
+    rm_list = []
+
+    args = ['--quiet', '--pretend', '--verbose', '--depclean']
+
+    p_exe = subprocess.Popen(
+        ['emerge'] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    stdout, stderr = p_exe.communicate()
+
+    stdout_lines = stdout.decode('utf-8').splitlines()
+    stderr_lines = stderr.decode('utf-8').splitlines()
+
+    for p_out in stdout_lines:
+        match = re.search(pattern, p_out)
+        if match:
+            to_remove = f"{match.group(1)}-{match.group(2)}"
+            if match.group(3):
+                to_remove += match.group(3)
+            if match.group(4):
+                to_remove += match.group(4)
+            rm_list.append(to_remove)
+
+    pickle.dump([rm_list], open("/tmp/hermes_pkgrevdeps.pickle", "wb"))
+
+
 def get_update_status():
     is_online = check_internet()
     if is_online != int(1):
@@ -137,25 +164,42 @@ def get_update_status():
         check_update()
     except Exception:
         logging.error("Upgrade check failed!")
-        return "check_failed"
+        return "upgrade_check_failed"
 
     try:
         with open("/tmp/hermes_worlddeps.pickle", "rb") as f:
             bin_list, src_list, need_cfg = pickle.load(f)
     except Exception:
         logging.error("Upgrade check failed!")
-        return "check_failed"
+        return "upgrade_check_failed"
 
     if need_cfg != int(0):
         logging.error("Portage configuration failure!")
         return "blocked_upgrade"
     else:
         if len(bin_list) == 0 and len(src_list) == 0:
-            logging.info("System up to date!")
-            return "heartbeat"
+            try:
+                check_orphans()
+            except Exception:
+                logging.error("Orphan check failed!")
+                return "orphans_check_failed"
+
+            try:
+                with open("/tmp/hermes_pkgrevdeps.pickle", "rb") as f:
+                    rm_list = pickle.load(f)
+            except Exception:
+                logging.error("Orphan check failed!")
+                return "orphans_check_failed"
+
+            if len(rm_list) == 0:
+                logging.info("System up to date!")
+                return "up_to_date"
+            else:
+                logging.info("Orphaned packages detected!")
+                return "orphans_detected"
         else:
             logging.info("System upgrade available!")
-            return "upgrade_available"
+            return "upgrade_detected"
 
 
 def send_message(emitter, msg):

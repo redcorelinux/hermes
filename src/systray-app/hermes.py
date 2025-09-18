@@ -157,18 +157,27 @@ class SysTrayGui(QtCore.QObject):
         elif message == "blocked_sync":
             self.tray.showMessage("Sync Failure", "Unable to sync the portage tree and overlays to check for system upgrade.",
                                   QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
-        elif message == "check_failed":
+        elif message == "upgrade_check_failed":
             self.tray.showMessage("Check Failure", "Unable to check for system upgrade.",
+                                  QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
+        elif message == "orphan_check_failed":
+            self.tray.showMessage("Check Failure", "Unable to check for orphaned packages.",
                                   QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         elif message == "blocked_upgrade":
             if not self.is_ignored():
                 self.tray.showMessage("Blocked Upgrade", "System upgrade is available but blocked due to portage configuration issues.",
                                       QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
-        elif message == "heartbeat":
-            pass
-        elif message == "upgrade_available":
+        elif message == "orphans_detected":
+            if not self.is_ignored():
+                self.tray.showMessage("Orphans Detected", "The system is up to date, but orphaned packages have been detected.",
+                                      QtWidgets.QSystemTrayIcon.MessageIcon.Information)
+        elif message == "upgrade_detected":
             if not self.is_ignored():
                 self.tray.showMessage("System Upgrade", "System upgrade is available to improve security, stability and performance.",
+                                      QtWidgets.QSystemTrayIcon.MessageIcon.Information)
+        elif message == "up_to_date":
+            if not self.is_ignored():
+                self.tray.showMessage("Up to date", "The system is up to date, will check again in 6 hours.",
                                       QtWidgets.QSystemTrayIcon.MessageIcon.Information)
 
     def handle_heartbeat(self):
