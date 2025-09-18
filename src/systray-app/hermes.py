@@ -82,7 +82,7 @@ class SysTrayGui(QtCore.QObject):
         ])
 
         self.tray = QtWidgets.QSystemTrayIcon(
-            QtGui.QIcon.fromTheme("utilities-system-monitor"))
+            QtGui.QIcon("/usr/share/pixmaps/hermes.png"))
         self.tray.setToolTip("Hermes: System Upgrade Notifications")
         self.tray.setVisible(True)
 
