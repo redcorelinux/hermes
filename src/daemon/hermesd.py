@@ -14,6 +14,7 @@ from gi.repository import GLib
 import sisyphus.checkenv
 import sisyphus.depsolve
 import sisyphus.getfs
+import sisyphus.revdepsolve
 import sisyphus.syncenv
 import sisyphus.syncdb
 
@@ -75,25 +76,42 @@ def get_update_status():
         sisyphus.depsolve.start.__wrapped__()
     except Exception:
         logging.error("Upgrade check failed!")
-        return "check_failed"
+        return "upgrade_check_failed"
 
     try:
         with open(os.path.join(sisyphus.getfs.p_mtd_dir, "sisyphus_worlddeps.pickle"), "rb") as f:
             bin_list, src_list, is_missing, is_vague, need_cfg = pickle.load(f)
     except Exception:
         logging.error("Upgrade check failed!")
-        return "check_failed"
+        return "upgrade_check_failed"
 
     if need_cfg != int(0):
         logging.error("Portage configuration failure!")
         return "blocked_upgrade"
     else:
         if len(bin_list) == 0 and len(src_list) == 0:
-            logging.info("System up to date!")
-            return "heartbeat"
+            try:
+                sisyphus.revdepsolve.start.__wrapped__(depclean=True)
+            except Exception:
+                logging.error("Orphan check failed!")
+                return "orphan_check_failed"
+
+            try:
+                with open(os.path.join(sisyphus.getfs.p_mtd_dir, "sisyphus_pkgrevdeps.pickle"), "rb") as f:
+                    is_installed, is_needed, is_vague, rm_list = pickle.load(f)
+            except Exception:
+                logging.error("Orphan check failed!")
+                return "orphan_check_failed"
+
+            if len(rm_list) == 0:
+                logging.info("System up to date!")
+                return "up_to_date"
+            else:
+                logging.info("Orphaned packages detected!")
+                return "orphans_detected"
         else:
-            logging.info("System upgrade available!")
-            return "upgrade_available"
+            logging.info("System upgrade detected!")
+            return "upgrade_detected"
 
 
 def send_message(emitter, msg):
