@@ -22,6 +22,7 @@ start_pre() {
 
 start() {
     ebegin "Starting ${name}"
+    export HERMESD_LOGFILE="${logfile}"
     start-stop-daemon --start --background --make-pidfile --pidfile "${pidfile}" \
         --exec "${command}" -- ${command_args} >> "${logfile}" 2>&1
     eend $?

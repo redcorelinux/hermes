@@ -21,11 +21,18 @@ INTERFACE = 'org.hermesd.MessageInterface'
 HEARTBEAT_INTERVAL = 2700   # 45 minutes
 STATUS_INTERVAL = 21600     # 6 hours
 
-logging.basicConfig(
-    stream=sys.stdout,
-    level=logging.INFO,
-    format='%(asctime)s %(levelname)s: %(message)s'
-)
+
+def setup_logging():
+    handlers = [logging.StreamHandler(sys.stdout)]
+    logfile = os.environ.get("HERMESD_LOGFILE")
+    if logfile:
+        handlers.append(logging.FileHandler(logfile))
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)s: %(message)s',
+        handlers=handlers
+    )
 
 
 class MessageEmitter(dbus.service.Object):
@@ -208,6 +215,7 @@ def send_message(emitter, msg):
 
 
 def main():
+    setup_logging()
     logging.info("Daemon starting")
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()

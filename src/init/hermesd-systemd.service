@@ -13,6 +13,7 @@ StandardError=journal
 Restart=on-failure
 RuntimeDirectory=hermesd
 RuntimeDirectoryMode=0755
+Environment=HERMESD_LOGFILE=/var/log/hermes-daemon.log
 
 [Install]
 WantedBy=multi-user.target
