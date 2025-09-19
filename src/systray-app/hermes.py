@@ -196,7 +196,7 @@ class SysTrayGui(QtCore.QObject):
         try:
             if not os.path.exists(AUTOSTART_DIR):
                 os.makedirs(AUTOSTART_DIR)
-            exec_path = /usr/bin/hermes.py
+            exec_path = sys.argv[0]
             desktop_entry = f"""[Desktop Entry]
 Type=Application
 Exec={exec_path}
