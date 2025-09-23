@@ -68,7 +68,7 @@ class HistoryDialog(QtWidgets.QDialog):
     def __init__(self, notifications, gui_instance=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Notification History")
-        self.resize(960, 540)
+        self.resize(720, 405)
 
         self.notifications = notifications
         self.parent_gui = gui_instance
@@ -77,6 +77,8 @@ class HistoryDialog(QtWidgets.QDialog):
         self.table = QtWidgets.QTableWidget(self)
         self.table.setColumnCount(3)
         self.table.setHorizontalHeaderLabels(["Timestamp", "Title", "Message"])
+        self.table.setColumnWidth(0, 150)
+        self.table.setColumnWidth(1, 150)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setEditTriggers(
             QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
