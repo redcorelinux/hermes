@@ -68,7 +68,7 @@ class HistoryDialog(QtWidgets.QDialog):
     def __init__(self, notifications, gui_instance=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Notification History")
-        self.resize(600, 400)
+        self.resize(960, 540)
 
         self.notifications = notifications
         self.parent_gui = gui_instance
@@ -227,39 +227,39 @@ class SysTrayGui(QtCore.QObject):
         self.heartbeat_timer.start()
 
         if message == "no_internet":
-            self.show_notification("No Internet Connection", "Unable to check for system upgrade because no internet connection is available.",
+            self.show_notification("No Internet", "Cannot check for updates.",
                                    QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         elif message == "blocked_sync":
-            self.show_notification("Sync Failure", "Unable to sync the portage tree and overlays to check for system upgrade.",
+            self.show_notification("Sync Failed", "Could not sync portage tree and overlays.",
                                    QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         elif message == "upgrade_check_failed":
-            self.show_notification("Check Failure", "Unable to check for system upgrade.",
+            self.show_notification("Check Failed", "Could not check for system upgrade.",
                                    QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         elif message == "orphan_check_failed":
-            self.show_notification("Check Failure", "Unable to check for orphaned packages.",
+            self.show_notification("Check Failed", "Could not check for orphaned packages.",
                                    QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         elif message == "blocked_upgrade":
             if not self.is_ignored():
-                self.show_notification("Blocked Upgrade", "System upgrade is available but blocked due to portage configuration issues.",
+                self.show_notification("Blocked Upgrade", "Upgrade blocked by portage configuration.",
                                        QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         elif message == "orphans_detected":
             if not self.is_ignored():
-                self.show_notification("Orphans Detected", "The system is up to date, but orphaned packages have been detected.",
+                self.show_notification("Orphans Detected", "System up to date, orphaned packages found.",
                                        QtWidgets.QSystemTrayIcon.MessageIcon.Information)
         elif message == "upgrade_detected":
             if not self.is_ignored():
-                self.show_notification("System Upgrade", "System upgrade is available to improve security, stability and performance.",
+                self.show_notification("System Upgrade", "System upgrade available.",
                                        QtWidgets.QSystemTrayIcon.MessageIcon.Information)
         elif message == "up_to_date":
             if not self.is_ignored():
-                self.show_notification("Up to date", "The system is up to date, will check again in 6 hours.",
+                self.show_notification("Up to date", "System is up to date.",
                                        QtWidgets.QSystemTrayIcon.MessageIcon.Information)
 
     def handle_heartbeat(self):
         self.heartbeat_timer.start()
 
     def missed_heartbeat(self):
-        self.show_notification("Heartbeat Missed", "No heartbeat message received in over 1 hour. The daemon may be offline.",
+        self.show_notification("Heartbeat Missed", "No heartbeat for over 1 hour.",
                                QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
 
     def add_to_autostart(self):
