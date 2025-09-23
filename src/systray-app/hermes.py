@@ -4,6 +4,7 @@ import sys
 import os
 import time
 import signal
+
 from collections import OrderedDict
 
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -62,6 +63,53 @@ class HermesDBusHandler(QtCore.QObject):
         return None
 
 
+class HistoryDialog(QtWidgets.QDialog):
+    def __init__(self, notifications, gui_instance=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Notification History")
+        self.resize(600, 400)
+
+        self.notifications = notifications
+        self.parent_gui = gui_instance
+
+        layout = QtWidgets.QVBoxLayout(self)
+        self.table = QtWidgets.QTableWidget(self)
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels(["Timestamp", "Title", "Message"])
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.setEditTriggers(
+            QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(
+            QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+
+        self.refresh_table()
+
+        layout.addWidget(self.table)
+
+        button_box = QtWidgets.QHBoxLayout()
+        clear_btn = QtWidgets.QPushButton("Clear Notification History")
+        clear_btn.clicked.connect(self.clear_history)
+        button_box.addStretch()
+        button_box.addWidget(clear_btn)
+        layout.addLayout(button_box)
+
+    def refresh_table(self):
+        self.table.setRowCount(len(self.notifications))
+        for row, note in enumerate(self.notifications):
+            self.table.setItem(
+                row, 0, QtWidgets.QTableWidgetItem(note['timestamp']))
+            self.table.setItem(
+                row, 1, QtWidgets.QTableWidgetItem(note['title']))
+            self.table.setItem(
+                row, 2, QtWidgets.QTableWidgetItem(note['message']))
+
+    def clear_history(self):
+        if self.parent_gui:
+            self.parent_gui.notification_history.clear()
+        self.notifications.clear()
+        self.refresh_table()
+
+
 class SysTrayGui(QtCore.QObject):
     def __init__(self):
         super().__init__()
@@ -76,8 +124,10 @@ class SysTrayGui(QtCore.QObject):
             ("Ignore notifications for 7 days", 7*24*3600),
             ("Ignore notifications for 15 days", 15*24*3600),
             ("Ignore notifications for 30 days", 30*24*3600),
-            ("Receive notifications", 0)
+            ("Allow notifications", 0)
         ])
+
+        self.notification_history = []
 
         self.tray = QtWidgets.QSystemTrayIcon(
             QtGui.QIcon("/usr/share/pixmaps/hermes.png"))
@@ -90,6 +140,12 @@ class SysTrayGui(QtCore.QObject):
             action.triggered.connect(
                 lambda checked, l=label: self.set_ignore(l))
             self.menu.addAction(action)
+
+        self.menu.addSeparator()
+
+        history_action = QtGui.QAction("Show Notification History", self.menu)
+        history_action.triggered.connect(self.show_notification_history)
+        self.menu.addAction(history_action)
 
         self.menu.addSeparator()
 
@@ -121,21 +177,33 @@ class SysTrayGui(QtCore.QObject):
         self.signal_timer.timeout.connect(lambda: None)
         self.signal_timer.start(100)  # every 100 ms
 
+    def record_notification(self, title, message, icon_type):
+        self.notification_history.append({
+            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'title': title,
+            'message': message,
+            'icon': icon_type,
+        })
+
+    def show_notification(self, title, message, icon_type):
+        self.tray.showMessage(title, message, icon_type)
+        self.record_notification(title, message, icon_type)
+
     def set_ignore(self, label):
         duration = self.ignore_durations[label]
         if duration == 0:
             if os.path.exists(IGNORE_FILE):
                 os.remove(IGNORE_FILE)
-            self.tray.showMessage("Ignore Cleared", "Receive upgrade notifications.",
-                                  QtWidgets.QSystemTrayIcon.MessageIcon.Information)
+            self.show_notification("Ignore Cleared", "Notifications allowed.",
+                                   QtWidgets.QSystemTrayIcon.MessageIcon.Information)
         else:
             expiry = int(time.time()) + duration
             try:
                 with open(IGNORE_FILE, "w") as f:
                     f.write(str(expiry))
                 text = label[25:] if len(label) > 25 else label
-                self.tray.showMessage(
-                    "Ignore Set", f"Ignoring upgrade notifications for {text}.", QtWidgets.QSystemTrayIcon.MessageIcon.Information)
+                self.show_notification(
+                    "Ignore Set", f"Ignoring notifications for {text}.", QtWidgets.QSystemTrayIcon.MessageIcon.Information)
             except Exception:
                 pass
 
@@ -152,40 +220,40 @@ class SysTrayGui(QtCore.QObject):
         self.heartbeat_timer.start()
 
         if message == "no_internet":
-            self.tray.showMessage("No Internet Connection", "Unable to check for system upgrade because no internet connection is available.",
-                                  QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
+            self.show_notification("No Internet Connection", "Unable to check for system upgrade because no internet connection is available.",
+                                   QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         elif message == "blocked_sync":
-            self.tray.showMessage("Sync Failure", "Unable to sync the portage tree and overlays to check for system upgrade.",
-                                  QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
+            self.show_notification("Sync Failure", "Unable to sync the portage tree and overlays to check for system upgrade.",
+                                   QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         elif message == "upgrade_check_failed":
-            self.tray.showMessage("Check Failure", "Unable to check for system upgrade.",
-                                  QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
+            self.show_notification("Check Failure", "Unable to check for system upgrade.",
+                                   QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         elif message == "orphan_check_failed":
-            self.tray.showMessage("Check Failure", "Unable to check for orphaned packages.",
-                                  QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
+            self.show_notification("Check Failure", "Unable to check for orphaned packages.",
+                                   QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         elif message == "blocked_upgrade":
             if not self.is_ignored():
-                self.tray.showMessage("Blocked Upgrade", "System upgrade is available but blocked due to portage configuration issues.",
-                                      QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
+                self.show_notification("Blocked Upgrade", "System upgrade is available but blocked due to portage configuration issues.",
+                                       QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         elif message == "orphans_detected":
             if not self.is_ignored():
-                self.tray.showMessage("Orphans Detected", "The system is up to date, but orphaned packages have been detected.",
-                                      QtWidgets.QSystemTrayIcon.MessageIcon.Information)
+                self.show_notification("Orphans Detected", "The system is up to date, but orphaned packages have been detected.",
+                                       QtWidgets.QSystemTrayIcon.MessageIcon.Information)
         elif message == "upgrade_detected":
             if not self.is_ignored():
-                self.tray.showMessage("System Upgrade", "System upgrade is available to improve security, stability and performance.",
-                                      QtWidgets.QSystemTrayIcon.MessageIcon.Information)
+                self.show_notification("System Upgrade", "System upgrade is available to improve security, stability and performance.",
+                                       QtWidgets.QSystemTrayIcon.MessageIcon.Information)
         elif message == "up_to_date":
             if not self.is_ignored():
-                self.tray.showMessage("Up to date", "The system is up to date, will check again in 6 hours.",
-                                      QtWidgets.QSystemTrayIcon.MessageIcon.Information)
+                self.show_notification("Up to date", "The system is up to date, will check again in 6 hours.",
+                                       QtWidgets.QSystemTrayIcon.MessageIcon.Information)
 
     def handle_heartbeat(self):
         self.heartbeat_timer.start()
 
     def missed_heartbeat(self):
-        self.tray.showMessage("Heartbeat Missed", "No heartbeat message received in over 1 hour. The daemon may be offline.",
-                              QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
+        self.show_notification("Heartbeat Missed", "No heartbeat message received in over 1 hour. The daemon may be offline.",
+                               QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
 
     def add_to_autostart(self):
         try:
@@ -203,24 +271,29 @@ Comment=Tray notifications for system upgrades
 """
             with open(AUTOSTART_FILE, 'w') as f:
                 f.write(desktop_entry)
-            self.tray.showMessage(
+            self.show_notification(
                 "Autostart Enabled", "", QtWidgets.QSystemTrayIcon.MessageIcon.Information)
         except Exception:
-            self.tray.showMessage(
+            self.show_notification(
                 "Autostart Enable Failed", "", QtWidgets.QSystemTrayIcon.MessageIcon.Critical)
 
     def remove_from_autostart(self):
         try:
             if os.path.exists(AUTOSTART_FILE):
                 os.remove(AUTOSTART_FILE)
-                self.tray.showMessage(
+                self.show_notification(
                     "Autostart Disabled", "", QtWidgets.QSystemTrayIcon.MessageIcon.Information)
             else:
-                self.tray.showMessage(
+                self.show_notification(
                     "Autostart Not Found", "", QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
         except Exception:
-            self.tray.showMessage(
+            self.show_notification(
                 "Autostart Disable Failed", "", QtWidgets.QSystemTrayIcon.MessageIcon.Critical)
+
+    def show_notification_history(self):
+        dialog = HistoryDialog(
+            self.notification_history, gui_instance=self, parent=None)
+        dialog.exec()
 
     def quit_app(self):
         self.tray.hide()
@@ -242,6 +315,7 @@ if __name__ == "__main__":
 
     dbus_handler = HermesDBusHandler()
     gui = SysTrayGui()
+
     dbus_handler.messageReceived.connect(gui.handle_message)
     dbus_handler.heartbeatReceived.connect(gui.handle_heartbeat)
 
