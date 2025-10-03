@@ -42,41 +42,68 @@ def setup_logging():
 class UpdateChecker:
     @staticmethod
     def get_status():
-        try:
-            if sisyphus.checkenv.connectivity() != int(1):
-                logging.error("Connectivity check failed")
-                return "no_internet"
+        is_online = sisyphus.checkenv.connectivity()
+        is_sane = sisyphus.checkenv.sanity()
 
-            if sisyphus.checkenv.sanity() != int(1):
+        if is_online != int(1):
+            logging.error("Connectivity check failed")
+            return "no_internet"
+        else:
+            if is_sane == int(1):
+                try:
+                    sisyphus.syncenv.g_repo()
+                    sisyphus.syncenv.r_repo()
+                    sisyphus.syncenv.p_cfg_repo()
+                    sisyphus.syncdb.rmt_tbl()
+                except Exception:
+                    logging.error("Portage tree && overlay sync failed!")
+                    return "blocked_sync"
+            else:
                 logging.error("Portage tree && overlay sync failed!")
                 return "blocked_sync"
 
-            sisyphus.syncenv.g_repo()
-            sisyphus.syncenv.r_repo()
-            sisyphus.syncenv.p_cfg_repo()
-            sisyphus.syncdb.rmt_tbl()
-
+        try:
             sisyphus.depsolve.start.__wrapped__()
+        except Exception:
+            logging.error("Upgrade check failed!")
+            return "upgrade_check_failed"
+
+        try:
             with open(os.path.join(sisyphus.getfs.p_mtd_dir, "sisyphus_worlddeps.pickle"), "rb") as f:
                 bin_list, src_list, is_missing, is_vague, need_cfg = pickle.load(
                     f)
-
-            if need_cfg != int(0):
-                logging.error("Portage configuration failure!")
-                return "blocked_upgrade"
-
-            if not bin_list and not src_list:
-                sisyphus.revdepsolve.start.__wrapped__(depclean=True)
-                with open(os.path.join(sisyphus.getfs.p_mtd_dir, "sisyphus_pkgrevdeps.pickle"), "rb") as f:
-                    is_installed, is_needed, is_vague, rm_list = pickle.load(f)
-                if not rm_list:
-                    return "up_to_date"
-                return "orphans_detected"
-            else:
-                return "upgrade_detected"
-        except Exception as e:
-            logging.exception("UpdateChecking Error: %s", e)
+        except Exception:
+            logging.error("Upgrade check failed!")
             return "upgrade_check_failed"
+
+        if need_cfg != int(0):
+            logging.error("Portage configuration failure!")
+            return "blocked_upgrade"
+        else:
+            if len(bin_list) == 0 and len(src_list) == 0:
+                try:
+                    sisyphus.revdepsolve.start.__wrapped__(depclean=True)
+                except Exception:
+                    logging.error("Orphan check failed!")
+                    return "orphan_check_failed"
+
+                try:
+                    with open(os.path.join(sisyphus.getfs.p_mtd_dir, "sisyphus_pkgrevdeps.pickle"), "rb") as f:
+                        is_installed, is_needed, is_vague, rm_list = pickle.load(
+                            f)
+                except Exception:
+                    logging.error("Orphan check failed!")
+                    return "orphan_check_failed"
+
+                if len(rm_list) == 0:
+                    logging.info("System up to date!")
+                    return "up_to_date"
+                else:
+                    logging.info("Orphaned packages detected!")
+                    return "orphans_detected"
+            else:
+                logging.info("System upgrade detected!")
+                return "upgrade_detected"
 
 
 class MessageEmitter(dbus.service.Object):
