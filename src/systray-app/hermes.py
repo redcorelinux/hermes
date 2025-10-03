@@ -18,6 +18,9 @@ SERVICE_NAME = 'org.hermesd.MessageService'
 OBJECT_PATH = '/org/hermesd/MessageObject'
 INTERFACE = 'org.hermesd.MessageInterface'
 
+LIGHT_ICON = "/usr/share/pixmaps/hermes-light.png"
+DARK_ICON = "/usr/share/pixmaps/hermes-dark.png"
+
 
 class HermesDBusHandler(QtCore.QObject):
     messageReceived = QtCore.pyqtSignal(str)
@@ -25,7 +28,6 @@ class HermesDBusHandler(QtCore.QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-
         self.session_bus = QDBusConnection.systemBus()
         self.session_bus.connect(
             SERVICE_NAME,
@@ -68,7 +70,6 @@ class HistoryDialog(QtWidgets.QDialog):
         super().__init__(parent)
         self.setWindowTitle("Notification History")
         self.resize(720, 405)
-
         self.notifications = notifications
         self.parent_gui = gui_instance
 
@@ -130,13 +131,14 @@ class SysTrayGui(QtCore.QObject):
         ])
 
         self.notification_history = []
+        self.current_icon = DARK_ICON
 
-        self.tray = QtWidgets.QSystemTrayIcon(
-            QtGui.QIcon("/usr/share/pixmaps/hermes.png"))
+        self.tray = QtWidgets.QSystemTrayIcon(QtGui.QIcon(self.current_icon))
         self.tray.setToolTip("Hermes: System Upgrade Notifications")
         self.tray.setVisible(True)
 
         self.menu = QtWidgets.QMenu()
+
         for label in self.ignore_durations:
             action = QtGui.QAction(label, self.menu)
             action.triggered.connect(
@@ -161,6 +163,27 @@ class SysTrayGui(QtCore.QObject):
         self.remove_autostart_action.triggered.connect(
             self.remove_from_autostart)
         self.menu.addAction(self.remove_autostart_action)
+
+        self.menu.addSeparator()
+
+        icon_menu = QtWidgets.QMenu("Tray Icon Style", self.menu)
+        light_icon_action = QtGui.QAction("Light Icon", self.menu)
+        dark_icon_action = QtGui.QAction("Dark Icon", self.menu)
+
+        def set_light_icon():
+            self.current_icon = LIGHT_ICON
+            self.tray.setIcon(QtGui.QIcon(LIGHT_ICON))
+
+        def set_dark_icon():
+            self.current_icon = DARK_ICON
+            self.tray.setIcon(QtGui.QIcon(DARK_ICON))
+
+        light_icon_action.triggered.connect(set_light_icon)
+        dark_icon_action.triggered.connect(set_dark_icon)
+
+        icon_menu.addAction(light_icon_action)
+        icon_menu.addAction(dark_icon_action)
+        self.menu.addMenu(icon_menu)
 
         self.menu.addSeparator()
 
@@ -254,7 +277,7 @@ class SysTrayGui(QtCore.QObject):
         self.heartbeat_timer.start()
 
     def missed_heartbeat(self):
-        self.show_notification("Heartbeat Missed", "No heartbeat for over 1 hour.",
+        self.show_notification("Heartbeat Missed", "No heartbeat for over 1 hour. Daemon offline.",
                                QtWidgets.QSystemTrayIcon.MessageIcon.Warning)
 
     def add_to_autostart(self):
