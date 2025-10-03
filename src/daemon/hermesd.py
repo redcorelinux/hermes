@@ -18,12 +18,13 @@ import sisyphus.revdepsolve
 import sisyphus.syncenv
 import sisyphus.syncdb
 
-SERVICE_NAME = 'org.hermesd.MessageService'
-OBJECT_PATH = '/org/hermesd/MessageObject'
-INTERFACE = 'org.hermesd.MessageInterface'
 
-HEARTBEAT_INTERVAL = 2700   # 45 minutes
-STATUS_INTERVAL = 21600     # 6 hours
+class Config:
+    SERVICE_NAME = 'org.hermesd.MessageService'
+    OBJECT_PATH = '/org/hermesd/MessageObject'
+    INTERFACE = 'org.hermesd.MessageInterface'
+    HEARTBEAT_INTERVAL = 2700    # 45 minutes
+    STATUS_INTERVAL = 21600      # 6 hours
 
 
 def setup_logging():
@@ -31,7 +32,6 @@ def setup_logging():
     logfile = os.environ.get("HERMESD_LOGFILE")
     if logfile:
         handlers.append(logging.FileHandler(logfile))
-
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s %(levelname)s: %(message)s',
@@ -39,127 +39,110 @@ def setup_logging():
     )
 
 
+class UpdateChecker:
+    @staticmethod
+    def get_status():
+        try:
+            if sisyphus.checkenv.connectivity() != int(1):
+                logging.error("Connectivity check failed")
+                return "no_internet"
+
+            if sisyphus.checkenv.sanity() != int(1):
+                logging.error("Portage tree && overlay sync failed!")
+                return "blocked_sync"
+
+            sisyphus.syncenv.g_repo()
+            sisyphus.syncenv.r_repo()
+            sisyphus.syncenv.p_cfg_repo()
+            sisyphus.syncdb.rmt_tbl()
+
+            sisyphus.depsolve.start.__wrapped__()
+            with open(os.path.join(sisyphus.getfs.p_mtd_dir, "sisyphus_worlddeps.pickle"), "rb") as f:
+                bin_list, src_list, is_missing, is_vague, need_cfg = pickle.load(
+                    f)
+
+            if need_cfg != int(0):
+                logging.error("Portage configuration failure!")
+                return "blocked_upgrade"
+
+            if not bin_list and not src_list:
+                sisyphus.revdepsolve.start.__wrapped__(depclean=True)
+                with open(os.path.join(sisyphus.getfs.p_mtd_dir, "sisyphus_pkgrevdeps.pickle"), "rb") as f:
+                    is_installed, is_needed, is_vague, rm_list = pickle.load(f)
+                if not rm_list:
+                    return "up_to_date"
+                return "orphans_detected"
+            else:
+                return "upgrade_detected"
+        except Exception as e:
+            logging.exception("UpdateChecking Error: %s", e)
+            return "upgrade_check_failed"
+
+
 class MessageEmitter(dbus.service.Object):
     def __init__(self, bus, object_path):
         super().__init__(bus, object_path)
 
-    @dbus.service.signal(dbus_interface=INTERFACE, signature='s')
+    @dbus.service.signal(dbus_interface=Config.INTERFACE, signature='s')
     def MessageSent(self, message):
         logging.info(f"Signal emitted: {message}")
 
-    @dbus.service.signal(dbus_interface=INTERFACE, signature='')
+    @dbus.service.signal(dbus_interface=Config.INTERFACE, signature='')
     def Heartbeat(self):
         logging.info("Heartbeat signal emitted")
 
-    @dbus.service.method(dbus_interface=INTERFACE, in_signature='', out_signature='s')
+    @dbus.service.method(dbus_interface=Config.INTERFACE, in_signature='', out_signature='s')
     def GetStatus(self):
-        status = get_update_status()
+        status = UpdateChecker.get_status()
         logging.info(f"GetStatus called; returning: {status}")
         return status
 
 
-def get_update_status():
-    is_online = sisyphus.checkenv.connectivity()
-    is_sane = sisyphus.checkenv.sanity()
+class HermesDaemon:
+    def __init__(self):
+        setup_logging()
+        dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+        self.bus = dbus.SystemBus()
+        self.name = dbus.service.BusName(Config.SERVICE_NAME, self.bus)
+        self.emitter = MessageEmitter(self.bus, Config.OBJECT_PATH)
+        self.loop = GLib.MainLoop()
+        self._setup_signals()
 
-    if is_online != int(1):
-        logging.error("Connectivity check failed")
-        return "no_internet"
-    else:
-        if is_sane == int(1):
-            try:
-                sisyphus.syncenv.g_repo()
-                sisyphus.syncenv.r_repo()
-                sisyphus.syncenv.p_cfg_repo()
-                sisyphus.syncdb.rmt_tbl()
-            except Exception:
-                logging.error("Portage tree && overlay sync failed!")
-                return "blocked_sync"
-        else:
-            logging.error("Portage tree && overlay sync failed!")
-            return "blocked_sync"
+    def _setup_signals(self):
+        signal.signal(signal.SIGTERM, self._sigterm_handler)
+        signal.signal(signal.SIGINT, self._sigterm_handler)
 
-    try:
-        sisyphus.depsolve.start.__wrapped__()
-    except Exception:
-        logging.error("Upgrade check failed!")
-        return "upgrade_check_failed"
+    def _sigterm_handler(self, signum, frame):
+        logging.info(f"Signal {signum} received, quitting main loop")
+        self.loop.quit()
 
-    try:
-        with open(os.path.join(sisyphus.getfs.p_mtd_dir, "sisyphus_worlddeps.pickle"), "rb") as f:
-            bin_list, src_list, is_missing, is_vague, need_cfg = pickle.load(f)
-    except Exception:
-        logging.error("Upgrade check failed!")
-        return "upgrade_check_failed"
+    def _send_periodic(self):
+        status = UpdateChecker.get_status()
+        logging.info(f"Periodic send message: {status}")
+        self.emitter.MessageSent(status)
+        GLib.timeout_add_seconds(Config.STATUS_INTERVAL, self._send_periodic)
+        return False
 
-    if need_cfg != int(0):
-        logging.error("Portage configuration failure!")
-        return "blocked_upgrade"
-    else:
-        if len(bin_list) == 0 and len(src_list) == 0:
-            try:
-                sisyphus.revdepsolve.start.__wrapped__(depclean=True)
-            except Exception:
-                logging.error("Orphan check failed!")
-                return "orphan_check_failed"
+    def _send_heartbeat(self):
+        self.emitter.Heartbeat()
+        GLib.timeout_add_seconds(
+            Config.HEARTBEAT_INTERVAL, self._send_heartbeat)
+        return False
 
-            try:
-                with open(os.path.join(sisyphus.getfs.p_mtd_dir, "sisyphus_pkgrevdeps.pickle"), "rb") as f:
-                    is_installed, is_needed, is_vague, rm_list = pickle.load(f)
-            except Exception:
-                logging.error("Orphan check failed!")
-                return "orphan_check_failed"
-
-            if len(rm_list) == 0:
-                logging.info("System up to date!")
-                return "up_to_date"
-            else:
-                logging.info("Orphaned packages detected!")
-                return "orphans_detected"
-        else:
-            logging.info("System upgrade detected!")
-            return "upgrade_detected"
-
-
-def send_message(emitter, msg):
-    logging.info(f"Emitting DBus signal: {msg}")
-    emitter.MessageSent(msg)
+    def run(self):
+        logging.info("Daemon starting")
+        self._send_periodic()
+        self._send_heartbeat()
+        try:
+            self.loop.run()
+        except Exception as e:
+            logging.info(f"Exiting: {e}")
+        logging.info("Daemon exited cleanly")
 
 
 def main():
-    setup_logging()
-    logging.info("Daemon starting")
-    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-    bus = dbus.SystemBus()
-    name = dbus.service.BusName(SERVICE_NAME, bus)
-    emitter = MessageEmitter(bus, OBJECT_PATH)
-    loop = GLib.MainLoop()
-
-    def send_periodic():
-        status = get_update_status()
-        logging.info(f"Periodic send message: {status}")
-        send_message(emitter, status)
-        GLib.timeout_add_seconds(STATUS_INTERVAL, send_periodic)
-        return False
-
-    def send_heartbeat():
-        emitter.Heartbeat()
-        GLib.timeout_add_seconds(HEARTBEAT_INTERVAL, send_heartbeat)
-        return False
-
-    def sigterm_handler(signum, frame):
-        logging.info("SIGTERM received, quitting main loop")
-        loop.quit()
-
-    signal.signal(signal.SIGTERM, sigterm_handler)
-    send_periodic()
-    send_heartbeat()
-    try:
-        loop.run()
-    except KeyboardInterrupt:
-        logging.info("Keyboard interrupt received, quitting main loop")
-        loop.quit()
-    logging.info("Daemon exited cleanly")
+    daemon = HermesDaemon()
+    daemon.run()
 
 
 if __name__ == '__main__':
