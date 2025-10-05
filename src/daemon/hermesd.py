@@ -231,13 +231,13 @@ class HermesDaemon:
         logging.info(f"Periodic send message: {status}")
         self.emitter.MessageSent(status)
         GLib.timeout_add_seconds(Config.STATUS_INTERVAL, self._send_periodic)
-        return False
+        return True
 
     def _send_heartbeat(self):
         self.emitter.Heartbeat()
         GLib.timeout_add_seconds(
             Config.HEARTBEAT_INTERVAL, self._send_heartbeat)
-        return False
+        return True
 
     def run(self):
         logging.info("Daemon starting")
