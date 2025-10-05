@@ -61,13 +61,11 @@ class UpdateChecker:
                 except Exception:
                     logging.error("Portage tree && overlay sync failed!")
                     return "blocked_sync"
-
                 try:
                     sisyphus.depsolve.start.__wrapped__()
                 except Exception:
                     logging.error("Upgrade check failed!")
                     return "upgrade_check_failed"
-
                 try:
                     with open(os.path.join(sisyphus.getfs.p_mtd_dir, "sisyphus_worlddeps.pickle"), "rb") as f:
                         bin_list, src_list, is_missing, is_vague, need_cfg = pickle.load(
@@ -87,7 +85,6 @@ class UpdateChecker:
                         except Exception:
                             logging.error("Orphan check failed!")
                             return "orphan_check_failed"
-
                         try:
                             with open(os.path.join(sisyphus.getfs.p_mtd_dir, "sisyphus_pkgrevdeps.pickle"), "rb") as f:
                                 is_installed, is_needed, is_vague, rm_list = pickle.load(
