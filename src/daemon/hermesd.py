@@ -149,13 +149,11 @@ class UpdateChecker:
             except Exception as e:
                 logging.error(f"'emerge --sync' failed: {e}")
                 return "blocked_sync"
-
             try:
                 UpdateChecker.check_update()
             except Exception:
                 logging.error("Upgrade check failed!")
                 return "upgrade_check_failed"
-
             try:
                 with open(Config.WORLDDEPS_PATH, "rb") as f:
                     bin_list, src_list, need_cfg = pickle.load(f)
@@ -172,8 +170,7 @@ class UpdateChecker:
                         UpdateChecker.check_orphans()
                     except Exception:
                         logging.error("Orphan check failed!")
-                    return "orphans_check_failed"
-
+                        return "orphans_check_failed"
                     try:
                         with open(Config.PKGREVD_PATH, "rb") as f:
                             rm_list = pickle.load(f)
