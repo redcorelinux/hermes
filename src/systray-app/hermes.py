@@ -124,11 +124,11 @@ class SysTrayGui(QtCore.QObject):
             self.app = QtWidgets.QApplication.instance()
 
         self.ignore_durations = OrderedDict([
-            ("Ignore notifications for 1 day", 24*3600),
-            ("Ignore notifications for 7 days", 7*24*3600),
-            ("Ignore notifications for 15 days", 15*24*3600),
-            ("Ignore notifications for 30 days", 30*24*3600),
-            ("Allow notifications", 0)
+            ("Snooze notifications for 1 day", 24*3600),
+            ("Snooze notifications for 7 days", 7*24*3600),
+            ("Snooze notifications for 15 days", 15*24*3600),
+            ("Snooze notifications for 30 days", 30*24*3600),
+            ("Resume notifications", 0)
         ])
 
         self.notification_history = []
@@ -140,12 +140,20 @@ class SysTrayGui(QtCore.QObject):
 
         self.menu = QtWidgets.QMenu()
 
+        ignore_menu = QtWidgets.QMenu("Snooze Notifications", self.menu)
         for label in self.ignore_durations:
-            action = QtGui.QAction(label, self.menu)
+            if label == "Resume notifications":
+                continue
+            action = QtGui.QAction(label, ignore_menu)
             action.triggered.connect(
                 lambda checked, l=label: self.set_ignore(l))
-            self.menu.addAction(action)
-        self.menu.addSeparator()
+            ignore_menu.addAction(action)
+        self.menu.addMenu(ignore_menu)
+
+        allow_action = QtGui.QAction("Resume notifications", self.menu)
+        allow_action.triggered.connect(
+            lambda: self.set_ignore("Resume notifications"))
+        self.menu.addAction(allow_action)
 
         history_action = QtGui.QAction("Show Notification History", self.menu)
         history_action.triggered.connect(self.show_notification_history)
