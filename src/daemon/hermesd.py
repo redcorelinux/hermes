@@ -148,7 +148,6 @@ class HermesDaemon:
             self.emitter.MessageSent(status)
         except Exception as e:
             logging.exception(f"Exception in _send_periodic: {e}")
-        GLib.timeout_add_seconds(Config.STATUS_INTERVAL, self._send_periodic)
         return True
 
     def _send_heartbeat(self):
@@ -157,7 +156,6 @@ class HermesDaemon:
             self.emitter.Heartbeat()
         except Exception as e:
             logging.exception(f"Exception in _send_heartbeat: {e}")
-        GLib.timeout_add_seconds(Config.HEARTBEAT_INTERVAL, self._send_heartbeat)
         return True
 
     def _idle_log(self):
@@ -168,6 +166,9 @@ class HermesDaemon:
         logging.info("Daemon starting")
         self._send_periodic()
         self._send_heartbeat()
+        GLib.timeout_add_seconds(Config.STATUS_INTERVAL, self._send_periodic)
+        GLib.timeout_add_seconds(
+            Config.HEARTBEAT_INTERVAL, self._send_heartbeat)
         GLib.timeout_add_seconds(600, self._idle_log)
         try:
             self.loop.run()
