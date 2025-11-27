@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Exec=/usr/bin/hermes.py
-Icon=/usr/share/pixmaps/hermes.png
+Icon=/usr/share/pixmaps/hermes-dark.png
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
