@@ -220,29 +220,41 @@ class HermesDaemon:
 
     def _setup_signals(self):
         signal.signal(signal.SIGTERM, self._sigterm_handler)
-        signal.signal(signal.SIGINT, self._sigterm_handler)
 
     def _sigterm_handler(self, signum, frame):
         logging.info("SIGTERM received, quitting main loop")
         self.loop.quit()
 
     def _send_periodic(self):
-        status = UpdateChecker.get_status()
-        logging.info(f"Periodic send message: {status}")
-        self.emitter.MessageSent(status)
+        try:
+            logging.info("Registering periodic status timer")
+            status = UpdateChecker.get_status()
+            logging.info(f"Periodic send message: {status}")
+            self.emitter.MessageSent(status)
+        except Exception as e:
+            logging.exception(f"Exception in _send_periodic: {e}")
         GLib.timeout_add_seconds(Config.STATUS_INTERVAL, self._send_periodic)
         return True
 
     def _send_heartbeat(self):
-        self.emitter.Heartbeat()
+        try:
+            logging.info("Registering heartbeat timer")
+            self.emitter.Heartbeat()
+        except Exception as e:
+            logging.exception(f"Exception in _send_heartbeat: {e}")
         GLib.timeout_add_seconds(
             Config.HEARTBEAT_INTERVAL, self._send_heartbeat)
+        return True
+
+    def _idle_log(self):
+        logging.info("Main loop is alive and running...")
         return True
 
     def run(self):
         logging.info("Daemon starting")
         self._send_periodic()
         self._send_heartbeat()
+        GLib.timeout_add_seconds(600, self._idle_log)
         try:
             self.loop.run()
         except KeyboardInterrupt:
