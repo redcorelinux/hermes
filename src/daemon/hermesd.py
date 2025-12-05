@@ -54,9 +54,9 @@ class UpdateChecker:
                 return "blocked_sync"
             else:
                 try:
-                    sisyphus.syncenv.g_repo()
-                    sisyphus.syncenv.r_repo()
-                    sisyphus.syncenv.p_cfg_repo()
+                    sisyphus.syncenv.repo_sync(sisyphus.getfs.g_src_dir, mode="hard")
+                    sisyphus.syncenv.repo_sync(sisyphus.getfs.r_src_dir, mode="hard")
+                    sisyphus.syncenv.repo_sync(sisyphus.getfs.p_cfg_dir, mode="stash")
                     sisyphus.syncdb.rmt_tbl()
                 except Exception:
                     logging.error("Portage tree && overlay sync failed!")
