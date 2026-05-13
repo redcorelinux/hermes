@@ -43,66 +43,63 @@ class UpdateChecker:
     @staticmethod
     def get_status():
         is_online = sisyphus.checkenv.connectivity()
-        is_sane = sisyphus.checkenv.sanity()
 
         if is_online != int(1):
             logging.error("Connectivity check failed")
             return "no_internet"
         else:
-            if is_sane == int(0):
+            try:
+                sisyphus.syncenv.repo_sync(
+                    sisyphus.getfs.gentoo_ebuild_dir, mode="hard")
+                sisyphus.syncenv.repo_sync(
+                    sisyphus.getfs.redcore_ebuild_dir, mode="hard")
+                sisyphus.syncenv.repo_sync(
+                    sisyphus.getfs.portage_cfg_dir, mode="stash")
+                sisyphus.syncenv.overlay_sync("/var/db/repos", mode="hard")
+                sisyphus.syncdb.remote_table()
+            except Exception:
                 logging.error("Portage tree && overlay sync failed!")
                 return "blocked_sync"
+            try:
+                sisyphus.depsolve.start.__wrapped__()
+            except Exception:
+                logging.error("Upgrade check failed!")
+                return "upgrade_check_failed"
+            try:
+                with open(os.path.join(sisyphus.getfs.pkg_metadata_dir, "sisyphus_worlddeps.pickle"), "rb") as f:
+                    bin_list, src_list, is_missing, is_vague, need_cfg = pickle.load(
+                        f)
+            except Exception:
+                logging.error("Upgrade check failed!")
+                return "upgrade_check_failed"
+
+            if need_cfg != int(0):
+                logging.error("Portage configuration failure!")
+                return "blocked_upgrade"
             else:
-                try:
-                    sisyphus.syncenv.repo_sync(sisyphus.getfs.gentoo_ebuild_dir, mode="hard")
-                    sisyphus.syncenv.repo_sync(sisyphus.getfs.redcore_ebuild_dir, mode="hard")
-                    sisyphus.syncenv.repo_sync(sisyphus.getfs.portage_cfg_dir, mode="stash")
-                    sisyphus.syncenv.overlay_sync("/var/db/repos", mode="hard")
-                    sisyphus.syncdb.remote_table()
-                except Exception:
-                    logging.error("Portage tree && overlay sync failed!")
-                    return "blocked_sync"
-                try:
-                    sisyphus.depsolve.start.__wrapped__()
-                except Exception:
-                    logging.error("Upgrade check failed!")
-                    return "upgrade_check_failed"
-                try:
-                    with open(os.path.join(sisyphus.getfs.pkg_metadata_dir, "sisyphus_worlddeps.pickle"), "rb") as f:
-                        bin_list, src_list, is_missing, is_vague, need_cfg = pickle.load(
-                            f)
-                except Exception:
-                    logging.error("Upgrade check failed!")
-                    return "upgrade_check_failed"
+                if len(bin_list) == 0 and len(src_list) == 0:
+                    try:
+                        sisyphus.revdepsolve.start.__wrapped__(depclean=True)
+                    except Exception:
+                        logging.error("Orphan check failed!")
+                        return "orphan_check_failed"
+                    try:
+                        with open(os.path.join(sisyphus.getfs.pkg_metadata_dir, "sisyphus_pkgrevdeps.pickle"), "rb") as f:
+                            is_installed, is_needed, is_vague, rm_list = pickle.load(
+                                f)
+                    except Exception:
+                        logging.error("Orphan check failed!")
+                        return "orphan_check_failed"
 
-                if need_cfg != int(0):
-                    logging.error("Portage configuration failure!")
-                    return "blocked_upgrade"
-                else:
-                    if len(bin_list) == 0 and len(src_list) == 0:
-                        try:
-                            sisyphus.revdepsolve.start.__wrapped__(
-                                depclean=True)
-                        except Exception:
-                            logging.error("Orphan check failed!")
-                            return "orphan_check_failed"
-                        try:
-                            with open(os.path.join(sisyphus.getfs.pkg_metadata_dir, "sisyphus_pkgrevdeps.pickle"), "rb") as f:
-                                is_installed, is_needed, is_vague, rm_list = pickle.load(
-                                    f)
-                        except Exception:
-                            logging.error("Orphan check failed!")
-                            return "orphan_check_failed"
-
-                        if len(rm_list) == 0:
-                            logging.info("System up to date!")
-                            return "up_to_date"
-                        else:
-                            logging.info("Orphaned packages detected!")
-                            return "orphans_detected"
+                    if len(rm_list) == 0:
+                        logging.info("System up to date!")
+                        return "up_to_date"
                     else:
-                        logging.info("System upgrade detected!")
-                        return "upgrade_detected"
+                        logging.info("Orphaned packages detected!")
+                        return "orphans_detected"
+                else:
+                    logging.info("System upgrade detected!")
+                    return "upgrade_detected"
 
 
 class MessageEmitter(dbus.service.Object):
